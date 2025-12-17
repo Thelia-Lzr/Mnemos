@@ -1,0 +1,40 @@
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../middleware/auth';
+import { PracticeGenerationService } from '../services/PracticeGenerationService';
+import { PracticeGroupModel } from '../models/PracticeGroup';
+import { PracticeEvaluationService } from '../services/PracticeEvaluationService';
+import { Pool } from 'pg';
+export declare class PracticeController {
+    private practiceGenerationService;
+    private practiceGroupModel;
+    private practiceEvaluationService;
+    private practiceAnalysisService;
+    private practiceQuestionService;
+    private db;
+    constructor(practiceGenerationService: PracticeGenerationService, practiceGroupModel: PracticeGroupModel, practiceEvaluationService: PracticeEvaluationService, db: Pool);
+    generatePracticeGroup(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateComprehensivePractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    getPracticeGroups(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    getPracticeGroup(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    submitPracticeGroup(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generatePracticeGroupAsync(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateComprehensivePracticeAsync(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateVocabularyPracticeAsync(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateVocabularyPractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    updateCapabilities(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateAIPractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    deletePracticeGroup(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    batchDeletePracticeGroups(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    batchDeletePracticeHistory(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generatePracticeAnalysis(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    getPracticeAnalysis(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    getPracticeHistory(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    getPracticeResultDetail(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    askQuestionFollowUp(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    askPracticeGroupFollowUp(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    askQuestionFollowUpStream(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    askPracticeGroupFollowUpStream(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    deletePracticeAnalysis(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    batchDeletePracticeAnalyses(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+}
+//# sourceMappingURL=PracticeController.d.ts.map

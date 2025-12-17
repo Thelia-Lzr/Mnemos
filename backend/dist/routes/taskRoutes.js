@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const TaskController_1 = require("../controllers/TaskController");
+const auth_1 = require("../middleware/auth");
+const router = (0, express_1.Router)();
+const taskController = new TaskController_1.TaskController();
+router.use(auth_1.authenticate);
+router.get('/user', TaskController_1.TaskController.validatePagination, taskController.getUserTasks);
+router.get('/status/:taskId', TaskController_1.TaskController.validateTaskId, taskController.getTaskStatus);
+router.get('/result/:taskId', TaskController_1.TaskController.validateTaskId, taskController.getTaskResult);
+router.post('/cancel/:taskId', TaskController_1.TaskController.validateTaskId, taskController.cancelTask);
+router.post('/retry/:taskId', TaskController_1.TaskController.validateTaskId, taskController.retryTask);
+router.get('/queue-status', taskController.getQueueStatus);
+router.post('/batch-status', TaskController_1.TaskController.validateBatchRequest, taskController.getBatchStatus);
+router.post('/batch-cancel', TaskController_1.TaskController.validateBatchRequest, taskController.cancelBatchTasks);
+router.get('/stats', taskController.getTaskStats);
+router.get('/results', TaskController_1.TaskController.validatePagination, taskController.getUserTaskResults);
+exports.default = router;
+//# sourceMappingURL=taskRoutes.js.map

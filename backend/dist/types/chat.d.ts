@@ -1,0 +1,161 @@
+export declare enum MessageType {
+    USER_TEXT = "user_text",
+    USER_FILE = "user_file",
+    AI_RESPONSE = "ai_response",
+    SYSTEM = "system"
+}
+export declare enum ProcessingStatus {
+    PENDING = "pending",
+    PROCESSING = "processing",
+    COMPLETED = "completed",
+    FAILED = "failed"
+}
+export declare enum UserIntent {
+    GENERATE_PRACTICE = "generate_practice",
+    VIEW_PRACTICE_HISTORY = "view_practice_history",
+    START_PRACTICE = "start_practice",
+    CHECK_PROGRESS = "check_progress",
+    VIEW_CAPABILITIES = "view_capabilities",
+    SET_LEARNING_GOALS = "set_learning_goals",
+    ADD_VOCABULARY = "add_vocabulary",
+    VIEW_VOCABULARY = "view_vocabulary",
+    REMOVE_VOCABULARY = "remove_vocabulary",
+    START_PK_MATCH = "start_pk_match",
+    VIEW_PK_HISTORY = "view_pk_history",
+    CHECK_MMR = "check_mmr",
+    VIEW_STATISTICS = "view_statistics",
+    CHECK_CREDITS = "check_credits",
+    VIEW_MILESTONES = "view_milestones",
+    UPDATE_PREFERENCES = "update_preferences",
+    CHANGE_LANGUAGE = "change_language",
+    LANGUAGE_LEARNING = "language_learning",
+    MATERIAL_ANALYSIS = "material_analysis",
+    ACCOUNT_MANAGEMENT = "account_management",
+    PAYMENT_OPERATIONS = "payment_operations",
+    PASSWORD_CHANGE = "password_change"
+}
+export interface FileAttachment {
+    id: string;
+    filename: string;
+    fileType: string;
+    fileSize: number;
+    uploadedAt: Date;
+    processedAt?: Date;
+    extractedContent?: string;
+}
+export interface FunctionCall {
+    id: string;
+    intent: UserIntent;
+    parameters: Record<string, any>;
+    executedAt: Date;
+    executionTime: number;
+    success: boolean;
+}
+export interface FunctionResult {
+    success: boolean;
+    data?: any;
+    error?: string;
+    requiresUserAction?: boolean;
+    actionUrl?: string;
+}
+export interface IntentResult {
+    intent: UserIntent;
+    confidence: number;
+    parameters: Record<string, any>;
+    requiresConfirmation: boolean;
+    isPrivacySensitive: boolean;
+}
+export interface FunctionIntent {
+    intent: UserIntent;
+    parameters: Record<string, any>;
+    userId: string;
+    language: string;
+}
+export interface Message {
+    id: string;
+    userId: string;
+    content: string;
+    type: MessageType;
+    timestamp: Date;
+    aiResponse?: {
+        content: string;
+        model: string;
+        tokensUsed: number;
+        processingTime: number;
+        metadata?: Record<string, any>;
+    };
+    processingStatus: ProcessingStatus;
+    detectedIntent?: UserIntent;
+    functionCalls?: FunctionCall[];
+    functionResults?: FunctionResult[];
+    attachments?: FileAttachment[];
+    extractedVocabulary?: string[];
+    identifiedGrammar?: string[];
+}
+export interface ChatSession {
+    userId: string;
+    messages: Message[];
+    language: string;
+    context: Record<string, any>;
+}
+export interface SendMessageRequest {
+    content: string;
+    language?: string;
+    context?: Record<string, any>;
+}
+export interface SendMessageResponse {
+    success: boolean;
+    message?: Message;
+    taskId?: string;
+    error?: string;
+}
+export interface UploadMaterialRequest {
+    language?: string;
+    context?: Record<string, any>;
+}
+export interface UploadMaterialResponse {
+    success: boolean;
+    message?: Message;
+    taskId?: string;
+    extractedContent?: string;
+    error?: string;
+}
+export interface ChatHistoryResponse {
+    success: boolean;
+    messages: Message[];
+    totalCount: number;
+    hasMore: boolean;
+    error?: string;
+}
+export interface FunctionCallRequest {
+    intent: UserIntent;
+    parameters: Record<string, any>;
+    language?: string;
+}
+export interface FunctionCallResponse {
+    success: boolean;
+    result?: FunctionResult;
+    taskId?: string;
+    error?: string;
+}
+export interface ParseIntentRequest {
+    message: string;
+    context?: Record<string, any>;
+    language?: string;
+}
+export interface ParseIntentResponse {
+    success: boolean;
+    result?: IntentResult;
+    error?: string;
+}
+export interface AvailableFunctionsResponse {
+    success: boolean;
+    functions: {
+        intent: UserIntent;
+        description: string;
+        parameters: Record<string, any>;
+        isPrivacySensitive: boolean;
+    }[];
+    error?: string;
+}
+//# sourceMappingURL=chat.d.ts.map
