@@ -88,11 +88,13 @@ cd backend && npx ts-node src/server-minimal.ts
 
 ### Test API
 ```bash
-# Test login
-cd backend && node test-api.js
+# Test backend health
+curl http://localhost:3001/health
 
-# Test connection
-cd backend && node test-frontend-connection.js
+# Test authentication endpoint
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"teddyyzr@foxmail.com","password":"Teddy&Terri123"}'
 ```
 
 ## 📊 System Health
