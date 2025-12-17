@@ -12,6 +12,16 @@ export interface PracticeAnalysisResult {
     weaknessesIdentified: string[];
     improvementSuggestions: string[];
     confidenceScore: number;
+    capabilityChanges: {
+        vocabulary: number;
+        grammar: number;
+        listening: number;
+        speaking: number;
+        reading: number;
+        writing: number;
+    };
+    overallProgressDirection: 'improved' | 'maintained' | 'declined';
+    progressMessage: string;
     aiModel: string;
     tokensUsed?: number;
     createdAt: Date;
@@ -31,9 +41,18 @@ export declare class PracticeAnalysisService {
     getAnalysisForPracticeResult(practiceResultId: string): Promise<PracticeAnalysisResult | null>;
     getUserAnalysisHistory(userId: string, limit?: number): Promise<PracticeAnalysisResult[]>;
     private buildAnalysisPrompt;
+    private getUserCurrentCapability;
+    private cleanJsonString;
     private parseAnalysisResponse;
+    private sanitizeString;
+    private sanitizeArray;
+    private sanitizeScore;
+    private sanitizeCapabilityChanges;
+    private sanitizeProgressDirection;
+    private getFallbackAnalysis;
     private saveAnalysisResult;
     private updateUserCapabilityFromAnalysis;
     private mapRowToAnalysisResult;
+    private parseJsonField;
 }
 //# sourceMappingURL=PracticeAnalysisService.d.ts.map

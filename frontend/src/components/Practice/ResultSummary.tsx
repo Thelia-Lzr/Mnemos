@@ -72,6 +72,17 @@ interface AIAnalysis {
   weaknessesIdentified: string[];
   improvementSuggestions: string[];
   confidenceScore: number;
+  // 新增：能力变化评估
+  capabilityChanges?: {
+    vocabulary: number;
+    grammar: number;
+    listening: number;
+    speaking: number;
+    reading: number;
+    writing: number;
+  };
+  overallProgressDirection?: 'improved' | 'maintained' | 'declined';
+  progressMessage?: string;
   createdAt: string;
 }
 
@@ -616,6 +627,83 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
                   ))}
                 </Box>
               </Box>
+
+              {/* Progress Message */}
+              {aiAnalysis.progressMessage && (
+                <Alert 
+                  severity={
+                    aiAnalysis.overallProgressDirection === 'improved' ? 'success' : 
+                    aiAnalysis.overallProgressDirection === 'declined' ? 'warning' : 'info'
+                  }
+                  variant="filled"
+                  sx={{ fontSize: '1.1rem', fontWeight: 'bold' }}
+                >
+                  {aiAnalysis.progressMessage}
+                </Alert>
+              )}
+
+              {/* Capability Changes */}
+              {aiAnalysis.capabilityChanges && (
+                <Box>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    能力变化评估
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+                    {Object.entries(aiAnalysis.capabilityChanges).map(([skill, change]) => {
+                      const skillNames: Record<string, string> = {
+                        vocabulary: '词汇能力',
+                        grammar: '语法能力',
+                        listening: '听力能力',
+                        speaking: '口语能力',
+                        reading: '阅读能力',
+                        writing: '写作能力'
+                      };
+                      
+                      const getChangeColor = (change: number) => {
+                        if (change > 0) return 'success.main';
+                        if (change < 0) return 'error.main';
+                        return 'grey.500';
+                      };
+                      
+                      const getChangeIcon = (change: number) => {
+                        if (change > 0) return <TrendingUp />;
+                        if (change < 0) return <TrendingDown />;
+                        return <div style={{ width: 24, height: 24 }} />;
+                      };
+                      
+                      return (
+                        <Box key={skill} sx={{ 
+                          p: 2, 
+                          border: 1, 
+                          borderColor: 'divider', 
+                          borderRadius: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {skillNames[skill]}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{ color: getChangeColor(change) }}>
+                              {getChangeIcon(change)}
+                            </Box>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                color: getChangeColor(change),
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {change > 0 ? '+' : ''}{change}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              )}
 
               {/* Strengths */}
               {aiAnalysis.strengthsIdentified.length > 0 && (

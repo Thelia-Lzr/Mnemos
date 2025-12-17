@@ -10,12 +10,12 @@ router.use(authenticate);
 
 // Task queries
 router.get('/user', TaskController.validatePagination, taskController.getUserTasks);
-router.get('/status/:taskId', TaskController.validateTaskId, taskController.getTaskStatus);
-router.get('/result/:taskId', TaskController.validateTaskId, taskController.getTaskResult);
+router.get('/:taskId/status', TaskController.validateTaskId, taskController.getTaskStatus);
+router.get('/:taskId/result', TaskController.validateTaskId, taskController.getTaskResult);
 
 // Task management
-router.post('/cancel/:taskId', TaskController.validateTaskId, taskController.cancelTask);
-router.post('/retry/:taskId', TaskController.validateTaskId, taskController.retryTask);
+router.post('/:taskId/cancel', TaskController.validateTaskId, taskController.cancelTask);
+router.post('/:taskId/retry', TaskController.validateTaskId, taskController.retryTask);
 router.get('/queue-status', taskController.getQueueStatus);
 
 // Batch operations

@@ -423,6 +423,139 @@ export class PracticeController {
     }
   }
 
+  async generateEnhancedPractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { 
+        language = 'en', 
+        type = 'general', 
+        difficulty = 'intermediate',
+        additionalPrompt,
+        focusAreas = [], 
+        vocabularyWords = [], 
+        grammarPoints = [],
+        count = 10 
+      } = req.body;
+      
+      if (!language || !type || !difficulty) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Language, type, and difficulty are required' 
+        });
+        return;
+      }
+
+      // Generate practice with enhanced prompt if provided
+      const practiceParams = {
+        userId: req.user!.id,
+        language: language as Language,
+        difficulty: difficulty as DifficultyLevel,
+        type: type as PracticeType,
+        focusAreas: focusAreas as SkillArea[],
+        vocabularyWords,
+        grammarPoints,
+        count,
+        additionalPrompt: additionalPrompt?.trim() || undefined
+      };
+
+      const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
+
+      res.status(200).json({ 
+        success: true, 
+        data: {
+          practiceGroup: practiceGroup,
+          aiAnalysis: additionalPrompt ? {
+            enhancedWithPrompt: true,
+            additionalPrompt: additionalPrompt.trim()
+          } : undefined
+        },
+        message: additionalPrompt 
+          ? `根据您的要求成功生成了${practiceGroup.questions.length}道个性化练习题！`
+          : `成功生成了${practiceGroup.questions.length}道练习题！`
+      });
+    } catch (error) { 
+      next(error); 
+    }
+  }
+
+  async generateEnhancedPracticeAsync(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { 
+        language = 'en', 
+        type = 'general', 
+        difficulty = 'intermediate',
+        additionalPrompt,
+        focusAreas = [], 
+        vocabularyWords = [], 
+        grammarPoints = [],
+        count = 10 
+      } = req.body;
+      
+      if (!language || !type || !difficulty) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Language, type, and difficulty are required' 
+        });
+        return;
+      }
+
+      // Generate practice with enhanced prompt if provided
+      const practiceParams = {
+        userId: req.user!.id,
+        language: language as Language,
+        difficulty: difficulty as DifficultyLevel,
+        type: type as PracticeType,
+        focusAreas: focusAreas as SkillArea[],
+        vocabularyWords,
+        grammarPoints,
+        count,
+        additionalPrompt: additionalPrompt?.trim() || undefined
+      };
+
+      // TEMPORARY: Since Redis/Bull queue is not available, generate synchronously
+      // TODO: Implement proper async task queue when Redis is available
+      try {
+        const { v4: uuidv4 } = await import('uuid');
+        const taskId = uuidv4();
+        
+        // Send immediate response with taskId
+        res.status(202).json({ 
+          success: true, 
+          taskId,
+          message: additionalPrompt 
+            ? '根据您的要求开始生成个性化练习题，请稍候...'
+            : '开始生成练习题，请稍候...'
+        });
+
+        // Generate practice in background (don't await)
+        setImmediate(async () => {
+          try {
+            const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
+            // Store result in AsyncTaskManager for retrieval
+            const asyncTaskManager = (await import('../services/AsyncTaskManager')).AsyncTaskManager.getInstance();
+            // Store the practice group directly as the result (not wrapped in an object)
+            await asyncTaskManager.completeTask(taskId, practiceGroup);
+          } catch (error) {
+            console.error('Background practice generation failed:', error);
+            const asyncTaskManager = (await import('../services/AsyncTaskManager')).AsyncTaskManager.getInstance();
+            await asyncTaskManager.failTask(taskId, error as Error);
+          }
+        });
+      } catch (error) {
+        // If immediate response fails, fall back to synchronous generation
+        const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
+        res.status(200).json({ 
+          success: true, 
+          data: {
+            practiceGroup: practiceGroup
+          },
+          message: '练习生成完成！'
+        });
+      }
+    } catch (error) { 
+      next(error); 
+    }
+  }
+
   async deletePracticeGroup(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;

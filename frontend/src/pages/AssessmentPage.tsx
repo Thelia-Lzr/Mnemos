@@ -597,7 +597,7 @@ const AssessmentPage: React.FC = () => {
                               <Typography variant="subtitle2" gutterBottom>建议</Typography>
                               {assessment.recommendations.map((rec, index) => (
                                 <Typography key={index} variant="body2" sx={{ mb: 1 }}>
-                                  • {rec}
+                                  • {typeof rec === 'string' ? rec : JSON.stringify(rec)}
                                 </Typography>
                               ))}
                             </Grid>
@@ -690,7 +690,7 @@ const AssessmentPage: React.FC = () => {
                                   </Typography>
                                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Typography variant="body2" color="text.secondary">
-                                      得分: {response.aiEvaluation.score}/100
+                                      得分: {typeof response.aiEvaluation?.score === 'number' ? response.aiEvaluation.score : 'N/A'}/100
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
                                       {formatDate(response.submittedAt)}

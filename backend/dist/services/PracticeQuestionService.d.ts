@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { Pool } from 'pg';
 import { OpenRouterService } from './OpenRouterService';
 import { CreditService } from './CreditService';
@@ -48,7 +47,7 @@ export interface FollowUpResponse {
     creditCost: number;
 }
 export interface StreamingFollowUpResponse {
-    stream: ReadableStream;
+    stream: any;
     creditCost: number;
 }
 export declare class PracticeQuestionService {

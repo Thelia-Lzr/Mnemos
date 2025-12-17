@@ -272,12 +272,19 @@ class UserCapabilityService {
     parseJsonField(field, defaultValue) {
         if (!field)
             return defaultValue;
-        try {
-            return typeof field === 'string' ? JSON.parse(field) : field;
+        if (typeof field === 'object' && field !== null) {
+            return field;
         }
-        catch {
-            return defaultValue;
+        if (typeof field === 'string') {
+            try {
+                return JSON.parse(field);
+            }
+            catch (error) {
+                console.warn('Failed to parse JSON field:', field, error);
+                return defaultValue;
+            }
         }
+        return defaultValue;
     }
     mapRowToLearningProgress(row) {
         return {
@@ -401,11 +408,11 @@ class UserCapabilityService {
             }
             if (characteristics.strengths) {
                 updateFields.push(`strengths = $${paramIndex++}`);
-                values.push(JSON.stringify(characteristics.strengths));
+                values.push(characteristics.strengths);
             }
             if (characteristics.weaknesses) {
                 updateFields.push(`weaknesses = $${paramIndex++}`);
-                values.push(JSON.stringify(characteristics.weaknesses));
+                values.push(characteristics.weaknesses);
             }
             if (updateFields.length === 0) {
                 return false;
@@ -414,7 +421,7 @@ class UserCapabilityService {
             const query = `
         UPDATE user_capabilities 
         SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
-        WHERE user_id = $${paramIndex++} AND language = $${paramIndex++}
+        WHERE user_id = $${paramIndex} AND language = $${paramIndex + 1}
       `;
             const result = await this.db.query(query, values);
             return (result.rowCount ?? 0) > 0;
@@ -445,7 +452,7 @@ class UserCapabilityService {
     async getChatAnalysisData(userId, language) {
         try {
             const result = await this.db.query(`SELECT content, ai_response, created_at FROM chat_messages 
-         WHERE user_id = $1 AND language = $2 
+         WHERE user_id = $1 AND (language = $2 OR language IS NULL)
          ORDER BY created_at DESC LIMIT 50`, [userId, language]);
             return result.rows;
         }
@@ -456,10 +463,19 @@ class UserCapabilityService {
     }
     async getPracticePerformanceData(userId, language) {
         try {
-            const result = await this.db.query(`SELECT accuracy, total_time, weak_areas, completed_at 
-         FROM practice_results 
-         WHERE user_id = $1 AND language = $2 
-         ORDER BY completed_at DESC LIMIT 20`, [userId, language]);
+            let result;
+            try {
+                result = await this.db.query(`SELECT accuracy, total_time, weak_areas, completed_at 
+           FROM practice_results 
+           WHERE user_id = $1 AND (language = $2 OR language IS NULL)
+           ORDER BY completed_at DESC LIMIT 20`, [userId, language]);
+            }
+            catch (langError) {
+                result = await this.db.query(`SELECT accuracy, total_time, weak_areas, completed_at 
+           FROM practice_results 
+           WHERE user_id = $1 
+           ORDER BY completed_at DESC LIMIT 20`, [userId]);
+            }
             return result.rows;
         }
         catch (error) {
@@ -469,7 +485,9 @@ class UserCapabilityService {
     }
     async getVocabularyTrackingData(userId, language) {
         try {
-            const result = await this.db.query(`SELECT mastery_level, mastery_score, practice_history 
+            const result = await this.db.query(`SELECT mastery_level, mastery_score, review_count, last_review_score, 
+                difficulty, frequency, last_reviewed_at, next_review_at,
+                initial_strength, decay_rate, word, definition
          FROM vocabulary_words 
          WHERE user_id = $1 AND language = $2`, [userId, language]);
             return result.rows;
@@ -570,13 +588,22 @@ class UserCapabilityService {
             assessmentDate: row.assessment_date,
             assessmentType: row.assessment_type,
             overallScore: row.overall_score,
-            skillScores: JSON.parse(row.skill_scores || '{}'),
+            skillScores: this.parseJsonField(row.skill_scores, {
+                vocabulary: 0,
+                grammar: 0,
+                listening: 0,
+                speaking: 0,
+                reading: 0,
+                writing: 0,
+                pronunciation: 0,
+                fluency: 0
+            }),
             dataSource: row.data_source,
             confidenceLevel: row.confidence_level,
-            improvementAreas: JSON.parse(row.improvement_areas || '[]'),
-            regressionAreas: JSON.parse(row.regression_areas || '[]'),
-            recommendations: JSON.parse(row.recommendations || '[]'),
-            nextSteps: JSON.parse(row.next_steps || '[]'),
+            improvementAreas: this.parseJsonField(row.improvement_areas, []),
+            regressionAreas: this.parseJsonField(row.regression_areas, []),
+            recommendations: this.parseJsonField(row.recommendations, []),
+            nextSteps: this.parseJsonField(row.next_steps, []),
             createdAt: row.created_at
         };
     }

@@ -104,20 +104,23 @@ class PracticeGroupModel {
     async findById(id) {
         const result = await this.db.query(`
       SELECT pg.*, 
-             json_agg(
-               json_build_object(
-                 'id', pq.id,
-                 'practiceGroupId', pq.practice_group_id,
-                 'type', pq.type,
-                 'content', pq.content,
-                 'options', pq.options,
-                 'correctAnswer', pq.correct_answer,
-                 'explanation', pq.explanation,
-                 'vocabularyWords', pq.vocabulary_words,
-                 'grammarPoints', pq.grammar_points,
-                 'difficulty', pq.difficulty,
-                 'orderIndex', pq.order_index
-               ) ORDER BY pq.order_index
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', pq.id,
+                   'practiceGroupId', pq.practice_group_id,
+                   'type', pq.type,
+                   'content', pq.content,
+                   'options', pq.options,
+                   'correctAnswer', pq.correct_answer,
+                   'explanation', pq.explanation,
+                   'vocabularyWords', pq.vocabulary_words,
+                   'grammarPoints', pq.grammar_points,
+                   'difficulty', pq.difficulty,
+                   'orderIndex', pq.order_index
+                 ) ORDER BY pq.order_index
+               ) FILTER (WHERE pq.id IS NOT NULL),
+               '[]'::json
              ) as questions
       FROM practice_groups pg
       LEFT JOIN questions pq ON pg.id = pq.practice_group_id
@@ -128,6 +131,10 @@ class PracticeGroupModel {
             return null;
         }
         const row = result.rows[0];
+        let questions = row.questions || [];
+        if (Array.isArray(questions) && questions.length === 1 && questions[0] === null) {
+            questions = [];
+        }
         return {
             id: row.id,
             userId: row.user_id,
@@ -136,7 +143,7 @@ class PracticeGroupModel {
             language: row.language,
             difficulty: row.difficulty,
             type: row.type,
-            questions: row.questions || [],
+            questions: questions,
             createdAt: row.created_at,
             estimatedDuration: row.estimated_duration,
             focusAreas: row.focus_areas || []
@@ -145,20 +152,23 @@ class PracticeGroupModel {
     async findByUserId(userId, limit = 20, offset = 0) {
         const result = await this.db.query(`
       SELECT pg.*, 
-             json_agg(
-               json_build_object(
-                 'id', pq.id,
-                 'practiceGroupId', pq.practice_group_id,
-                 'type', pq.type,
-                 'content', pq.content,
-                 'options', pq.options,
-                 'correctAnswer', pq.correct_answer,
-                 'explanation', pq.explanation,
-                 'vocabularyWords', pq.vocabulary_words,
-                 'grammarPoints', pq.grammar_points,
-                 'difficulty', pq.difficulty,
-                 'orderIndex', pq.order_index
-               ) ORDER BY pq.order_index
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', pq.id,
+                   'practiceGroupId', pq.practice_group_id,
+                   'type', pq.type,
+                   'content', pq.content,
+                   'options', pq.options,
+                   'correctAnswer', pq.correct_answer,
+                   'explanation', pq.explanation,
+                   'vocabularyWords', pq.vocabulary_words,
+                   'grammarPoints', pq.grammar_points,
+                   'difficulty', pq.difficulty,
+                   'orderIndex', pq.order_index
+                 ) ORDER BY pq.order_index
+               ) FILTER (WHERE pq.id IS NOT NULL),
+               '[]'::json
              ) as questions
       FROM practice_groups pg
       LEFT JOIN questions pq ON pg.id = pq.practice_group_id
@@ -167,19 +177,25 @@ class PracticeGroupModel {
       ORDER BY pg.created_at DESC
       LIMIT $2 OFFSET $3
     `, [userId, limit, offset]);
-        return result.rows.map(row => ({
-            id: row.id,
-            userId: row.user_id,
-            title: row.title,
-            description: row.description,
-            language: row.language,
-            difficulty: row.difficulty,
-            type: row.type,
-            questions: row.questions || [],
-            createdAt: row.created_at,
-            estimatedDuration: row.estimated_duration,
-            focusAreas: row.focus_areas || []
-        }));
+        return result.rows.map(row => {
+            let questions = row.questions || [];
+            if (Array.isArray(questions) && questions.length === 1 && questions[0] === null) {
+                questions = [];
+            }
+            return {
+                id: row.id,
+                userId: row.user_id,
+                title: row.title,
+                description: row.description,
+                language: row.language,
+                difficulty: row.difficulty,
+                type: row.type,
+                questions: questions,
+                createdAt: row.created_at,
+                estimatedDuration: row.estimated_duration,
+                focusAreas: row.focus_areas || []
+            };
+        });
     }
     async createResult(result) {
         const id = (0, uuid_1.v4)();

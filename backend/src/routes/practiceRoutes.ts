@@ -61,6 +61,12 @@ router.post('/update-capabilities', practiceController.updateCapabilities.bind(p
 // AI-powered practice generation
 router.post('/generate-ai-practice', practiceController.generateAIPractice.bind(practiceController));
 
+// Enhanced practice generation with optional additional prompt
+router.post('/generate-enhanced-practice', practiceController.generateEnhancedPractice.bind(practiceController));
+
+// Enhanced practice generation (async) with optional additional prompt
+router.post('/generate-enhanced-practice-async', practiceController.generateEnhancedPracticeAsync.bind(practiceController));
+
 // Delete practice group
 router.delete('/group/:id', practiceController.deletePracticeGroup.bind(practiceController));
 

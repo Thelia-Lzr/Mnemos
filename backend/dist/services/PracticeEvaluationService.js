@@ -46,7 +46,8 @@ class PracticeEvaluationService {
             questionContent: qa.questionContent || ''
         }));
         const performanceAnalysis = this.analyzePerformance(practiceGroup, questionAnswers);
-        const capabilityUpdates = await this.generateCapabilityUpdates(userId, practiceGroup, questionAnswers, accuracy);
+        const capabilityUpdates = await this.generateCapabilityUpdates(userId, practiceGroup, questionAnswers, accuracy, false);
+        this.scheduleAsyncAIAnalysis(userId, practiceGroup, questionAnswers, accuracy);
         const vocabularyUpdates = this.generateVocabularyUpdates(practiceGroup, questionAnswers);
         const milestoneProgress = await this.generateMilestoneProgress(userId, practiceGroup, accuracy);
         return {
@@ -228,13 +229,23 @@ class PracticeEvaluationService {
         }
         return recommendations;
     }
-    async generateCapabilityUpdates(userId, practiceGroup, questionAnswers, accuracy) {
+    async generateCapabilityUpdates(userId, practiceGroup, questionAnswers, accuracy, useAIAnalysis = true) {
         const updates = [];
         const currentCapability = await this.userCapabilityService.getUserCapability(userId, practiceGroup.language);
         if (!currentCapability) {
             return updates;
         }
-        const aiAnalysis = await this.generateAICapabilityAnalysis(practiceGroup, questionAnswers, currentCapability);
+        let aiAnalysis;
+        if (useAIAnalysis) {
+            aiAnalysis = await this.generateAICapabilityAnalysis(practiceGroup, questionAnswers, currentCapability);
+        }
+        else {
+            aiAnalysis = {
+                skillAdjustments: {},
+                confidence: 0.5,
+                reasoning: 'Basic analysis - AI analysis scheduled for background processing'
+            };
+        }
         const skillPerformance = this.calculateSkillPerformance(practiceGroup, questionAnswers);
         skillPerformance.forEach((performance, skillArea) => {
             const currentScore = this.getCurrentSkillScore(currentCapability, skillArea);
@@ -256,6 +267,24 @@ class PracticeEvaluationService {
             }
         });
         return updates;
+    }
+    scheduleAsyncAIAnalysis(userId, practiceGroup, questionAnswers, accuracy) {
+        setTimeout(async () => {
+            try {
+                console.log(`Starting background AI analysis for user ${userId}, practice group ${practiceGroup.id}`);
+                const currentCapability = await this.userCapabilityService.getUserCapability(userId, practiceGroup.language);
+                if (currentCapability) {
+                    const aiEnhancedUpdates = await this.generateCapabilityUpdates(userId, practiceGroup, questionAnswers, accuracy, true);
+                    console.log(`Background AI analysis completed for user ${userId}:`, {
+                        updatesCount: aiEnhancedUpdates.length,
+                        practiceGroupId: practiceGroup.id
+                    });
+                }
+            }
+            catch (error) {
+                console.warn(`Background AI analysis failed for user ${userId}:`, error);
+            }
+        }, 100);
     }
     async generateAICapabilityAnalysis(practiceGroup, questionAnswers, currentCapability) {
         try {

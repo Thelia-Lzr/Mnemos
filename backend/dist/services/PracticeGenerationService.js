@@ -126,6 +126,42 @@ class PracticeGenerationService {
         const practiceGroupModel = new (await Promise.resolve().then(() => __importStar(require('../models/PracticeGroup')))).PracticeGroupModel(this.db);
         return await practiceGroupModel.create(practiceGroupData);
     }
+    async generateEnhancedPracticeGroup(request) {
+        const creditCost = this.calculateCreditCost(request.type);
+        await this.creditService.consumeCredits(request.userId, 'practice_generation', 0);
+        const userCapability = await this.userCapabilityService.getUserCapability(request.userId, request.language);
+        const difficulty = request.difficulty || this.determineDifficulty(userCapability);
+        const practiceContent = await this.generateEnhancedPracticeContent(request, userCapability, difficulty);
+        const practiceGroupData = {
+            userId: request.userId,
+            title: practiceContent.title,
+            description: practiceContent.description,
+            language: request.language,
+            difficulty,
+            type: request.type,
+            questions: practiceContent.questions,
+            estimatedDuration: this.calculateEstimatedDuration(practiceContent.questions),
+            focusAreas: request.focusAreas || this.extractFocusAreas(practiceContent.questions)
+        };
+        const practiceGroupModel = new (await Promise.resolve().then(() => __importStar(require('../models/PracticeGroup')))).PracticeGroupModel(this.db);
+        return await practiceGroupModel.create(practiceGroupData);
+    }
+    async generateEnhancedPracticeGroupAsync(request) {
+        const creditCost = this.calculateCreditCost(request.type);
+        await this.creditService.checkSufficientCredits(request.userId, 'practice_generation', 0);
+        const taskId = await this.asyncTaskManager.createTask({
+            userId: request.userId,
+            type: task_1.AITaskType.PRACTICE_GENERATION,
+            priority: task_1.TaskPriority.NORMAL,
+            model: this.selectAIModel(request.type),
+            prompt: this.buildEnhancedGenerationPrompt(request),
+            context: request,
+            maxRetries: 3,
+            timeout: 300000,
+            notifyUser: true
+        });
+        return taskId;
+    }
     async generatePracticeContent(request, userCapability, difficulty) {
         const practicePrompt = AIPromptService_1.aiPromptService.generatePracticePrompt({
             language: request.language,
@@ -194,10 +230,35 @@ class PracticeGenerationService {
         const parsed = this.parsePracticeResponse(response.content);
         return { questions: parsed.questions };
     }
+    async generateEnhancedPracticeContent(request, userCapability, difficulty) {
+        const practicePrompt = AIPromptService_1.aiPromptService.generatePracticePrompt({
+            language: request.language,
+            userLevel: userCapability?.overallLevel || 'B1',
+            userCapabilities: userCapability
+        }, request.type, this.getPracticeTopicName(request.type), request.vocabularyWords, request.grammarPoints);
+        if (!practicePrompt) {
+            throw new Error('Failed to generate enhanced practice prompt');
+        }
+        const enhancedPrompt = this.buildEnhancedGenerationPrompt(request, userCapability, difficulty);
+        const model = this.openRouterService.selectModel(openrouter_1.TaskType.EXERCISE_GENERATION, request.language);
+        const response = await this.openRouterService.callAI(model, enhancedPrompt, {
+            systemPrompt: practicePrompt.systemPrompt,
+            userId: request.userId,
+            language: request.language,
+            type: request.type
+        }, request.userId);
+        return this.parsePracticeResponse(response.content);
+    }
     buildGenerationPrompt(request, userCapability, difficulty) {
         const languageName = this.getLanguageName(request.language);
         const difficultyLevel = difficulty || request.difficulty || PracticeGroup_1.DifficultyLevel.INTERMEDIATE;
         let prompt = `Generate a ${languageName} language learning practice group with exactly 10 questions.
+
+CRITICAL LANGUAGE REQUIREMENTS:
+1. Question content (content) must be STRICTLY in ${languageName} (the target language)
+2. All options must be STRICTLY in ${languageName} (the target language)
+3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
+4. Explanations (explanation) must be in detailed Chinese, including grammar analysis, vocabulary explanation, and language point expansion
 
 Requirements:
 - Language: ${languageName}
@@ -206,6 +267,11 @@ Requirements:
 - Question format: Multiple choice with 4 options each
 - Include vocabulary words and grammar points for each question
 - Provide detailed explanations for correct answers
+
+LANGUAGE USAGE EXAMPLES:
+- Learning French: Question in French "Où est la bibliothèque?", options in French, explanation in detailed Chinese
+- Learning English: Question in English "Where is the library?", options in English, explanation in detailed Chinese
+- Learning German: Question in German "Wo ist die Bibliothek?", options in German, explanation in detailed Chinese
 
 `;
         if (userCapability) {
@@ -228,7 +294,15 @@ Requirements:
             prompt += `Include these grammar points: ${request.grammarPoints.join(', ')}\n`;
         }
         prompt += `
-IMPORTANT: All explanations must be written in Chinese (中文) for Chinese users to understand.
+DETAILED EXPLANATION REQUIREMENTS:
+Each explanation must include (in Chinese):
+1. Detailed grammar analysis of the correct answer
+2. Vocabulary meanings and usage
+3. Grammar structure explanation with examples
+4. Analysis of why wrong options are incorrect
+5. Related language point extensions
+6. Practical application scenarios and examples
+7. At least 100 characters of detailed explanation
 
 CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
 1. Return ONLY a valid JSON object - NO markdown, NO code blocks, NO extra text
@@ -237,7 +311,7 @@ CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
 4. "correctAnswer" must be ONLY a single letter: "A", "B", "C", or "D"
 5. "vocabularyWords" must be an ARRAY of strings, NOT objects
 6. "grammarPoints" must be an ARRAY of strings
-7. All explanations must be in Chinese (中文)
+7. All explanations must be in detailed Chinese (中文) with at least 100 characters
 8. DO NOT use object format for options like {"A": "text", "B": "text"}
 
 REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
@@ -247,10 +321,10 @@ REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
   "questions": [
     {
       "type": "multiple_choice",
-      "content": "Question text here",
-      "options": ["A. First option text", "B. Second option text", "C. Third option text", "D. Fourth option text"],
+      "content": "Question text in ${languageName}",
+      "options": ["A. First option in ${languageName}", "B. Second option in ${languageName}", "C. Third option in ${languageName}", "D. Fourth option in ${languageName}"],
       "correctAnswer": "A",
-      "explanation": "详细的中文解析，说明为什么这个答案是正确的",
+      "explanation": "详细的中文解析，包含语法分析、词汇解释、语言点扩展等，至少100字",
       "vocabularyWords": ["word1", "word2", "word3"],
       "grammarPoints": ["grammar point 1", "grammar point 2"],
       "difficulty": 3
@@ -260,21 +334,28 @@ REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
 
 STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ JSON is valid and parseable
+- ✓ Questions and options are in ${languageName} (target language)
 - ✓ "options" is ARRAY (not object) with exactly 4 strings starting with "A.", "B.", "C.", "D."
 - ✓ "correctAnswer" is single letter only (A, B, C, or D)
 - ✓ "vocabularyWords" is array of strings (not objects with word/translation)
-- ✓ "explanation" is in Chinese
+- ✓ "explanation" is in detailed Chinese with at least 100 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated. All explanations MUST be in Chinese. Return ONLY the JSON object, no additional text or formatting.`;
+Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese. Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     buildComprehensivePrompt(request, userData) {
         const languageName = this.getLanguageName(request.language);
         let prompt = `Generate a comprehensive ${languageName} language assessment practice with exactly 10 questions.
+
+CRITICAL LANGUAGE REQUIREMENTS:
+1. Question content (content) must be STRICTLY in ${languageName} (the target language)
+2. All options must be STRICTLY in ${languageName} (the target language)
+3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
+4. Explanations (explanation) must be in detailed Chinese, including deep grammar analysis, vocabulary explanation, and systematic language point expansion
 
 This should be a comprehensive evaluation covering multiple skill areas based on the user's complete learning profile.
 
@@ -314,7 +395,16 @@ Generate questions that:
 4. Include some challenging questions to assess growth potential
 5. Cover both learned vocabulary and new words at appropriate difficulty
 
-IMPORTANT: All explanations must be written in Chinese (中文) for Chinese users to understand.
+DETAILED EXPLANATION REQUIREMENTS:
+Each explanation must include (in Chinese):
+1. Deep grammar analysis and linguistic explanation of the correct answer
+2. Etymology, conjugation, and collocation usage of key vocabulary
+3. Detailed grammar structure explanation with multiple examples
+4. Specific error analysis of wrong options
+5. Systematic expansion of related language points
+6. Cultural background and practical application scenarios
+7. Learning suggestions and memory techniques
+8. At least 150 characters of detailed explanation
 
 CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
 1. Return ONLY a valid JSON object - NO markdown, NO code blocks, NO extra text
@@ -323,7 +413,7 @@ CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
 4. "correctAnswer" must be ONLY a single letter: "A", "B", "C", or "D"
 5. "vocabularyWords" must be an ARRAY of strings, NOT objects
 6. "grammarPoints" must be an ARRAY of strings
-7. All explanations must be in Chinese (中文)
+7. All explanations must be in detailed Chinese (中文) with at least 150 characters
 8. DO NOT use object format for options like {"A": "text", "B": "text"}
 
 REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
@@ -333,10 +423,10 @@ REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
   "questions": [
     {
       "type": "multiple_choice",
-      "content": "Question text here",
-      "options": ["A. First option text", "B. Second option text", "C. Third option text", "D. Fourth option text"],
+      "content": "Question text in ${languageName}",
+      "options": ["A. First option in ${languageName}", "B. Second option in ${languageName}", "C. Third option in ${languageName}", "D. Fourth option in ${languageName}"],
       "correctAnswer": "A",
-      "explanation": "详细的中文解析，说明答案和相关知识点",
+      "explanation": "详细的中文解析，包含深入语法分析、词汇解释、语言点扩展等，至少150字",
       "vocabularyWords": ["word1", "word2", "word3"],
       "grammarPoints": ["grammar point 1", "grammar point 2"],
       "difficulty": 3
@@ -346,22 +436,29 @@ REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
 
 STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ JSON is valid and parseable
+- ✓ Questions and options are in ${languageName} (target language)
 - ✓ "options" is ARRAY (not object) with exactly 4 strings starting with "A.", "B.", "C.", "D."
 - ✓ "correctAnswer" is single letter only (A, B, C, or D)
 - ✓ "vocabularyWords" is array of strings (not objects with word/translation)
-- ✓ "explanation" is in Chinese
+- ✓ "explanation" is in detailed Chinese with at least 150 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated. All explanations MUST be in Chinese. Return ONLY the JSON object, no additional text or formatting.`;
+Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese with comprehensive analysis. Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     buildVocabularyPrompt(language, vocabularyWords, userCapability) {
         const languageName = this.getLanguageName(language);
         let prompt = `Generate a ${languageName} vocabulary practice with exactly 10 questions focusing on these words:
 ${vocabularyWords.join(', ')}
+
+CRITICAL LANGUAGE REQUIREMENTS:
+1. Question content (content) must be STRICTLY in ${languageName} (the target language)
+2. All options must be STRICTLY in ${languageName} (the target language)
+3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
+4. Explanations (explanation) must be in detailed Chinese, including vocabulary analysis, usage explanation, and related knowledge expansion
 
 `;
         if (userCapability) {
@@ -380,7 +477,15 @@ Create questions that test:
 4. Collocations and common phrases
 5. Different forms of the words
 
-IMPORTANT: All explanations must be written in Chinese (中文) for Chinese users to understand.
+DETAILED EXPLANATION REQUIREMENTS:
+Each explanation must include (in Chinese):
+1. Detailed vocabulary meaning and etymology
+2. Usage patterns and collocations
+3. Synonyms, antonyms, and related words
+4. Grammar patterns and sentence structures
+5. Cultural context and practical examples
+6. Memory techniques and learning tips
+7. At least 100 characters of detailed explanation
 
 CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
 1. Return ONLY a valid JSON object - NO markdown, NO code blocks, NO extra text
@@ -389,7 +494,7 @@ CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
 4. "correctAnswer" must be ONLY a single letter: "A", "B", "C", or "D"
 5. "vocabularyWords" must be an ARRAY of strings, NOT objects
 6. "grammarPoints" must be an ARRAY of strings
-7. All explanations must be in Chinese (中文)
+7. All explanations must be in detailed Chinese (中文) with at least 100 characters
 8. DO NOT use object format for options like {"A": "text", "B": "text"}
 
 REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
@@ -399,10 +504,10 @@ REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
   "questions": [
     {
       "type": "multiple_choice",
-      "content": "Question text here",
-      "options": ["A. First option text", "B. Second option text", "C. Third option text", "D. Fourth option text"],
+      "content": "Question text in ${languageName}",
+      "options": ["A. First option in ${languageName}", "B. Second option in ${languageName}", "C. Third option in ${languageName}", "D. Fourth option in ${languageName}"],
       "correctAnswer": "A",
-      "explanation": "详细的中文解析，说明词汇含义和用法",
+      "explanation": "详细的中文解析，包含词汇分析、用法说明、相关知识扩展等，至少100字",
       "vocabularyWords": ["word1", "word2"],
       "grammarPoints": [],
       "difficulty": 3
@@ -412,16 +517,17 @@ REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
 
 STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ JSON is valid and parseable
+- ✓ Questions and options are in ${languageName} (target language)
 - ✓ "options" is ARRAY (not object) with exactly 4 strings starting with "A.", "B.", "C.", "D."
 - ✓ "correctAnswer" is single letter only (A, B, C, or D)
 - ✓ "vocabularyWords" is array of strings (not objects with word/translation)
-- ✓ "explanation" is in Chinese
+- ✓ "explanation" is in detailed Chinese with at least 100 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated, focusing on the provided vocabulary words. All explanations MUST be in Chinese. Return ONLY the JSON object, no additional text or formatting.`;
+Ensure exactly 10 questions are generated, focusing on the provided vocabulary words. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese. Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     parsePracticeResponse(content) {
@@ -640,6 +746,110 @@ Ensure exactly 10 questions are generated, focusing on the provided vocabulary w
             default:
                 return '综合练习';
         }
+    }
+    buildEnhancedGenerationPrompt(request, userCapability, difficulty) {
+        const languageName = this.getLanguageName(request.language);
+        const difficultyLevel = difficulty || request.difficulty || PracticeGroup_1.DifficultyLevel.INTERMEDIATE;
+        let prompt = `Generate a ${languageName} language learning practice group with exactly 10 questions.
+
+CRITICAL LANGUAGE REQUIREMENTS:
+1. Question content (content) must be STRICTLY in ${languageName} (the target language)
+2. All options must be STRICTLY in ${languageName} (the target language)
+3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
+4. Explanations (explanation) must be in detailed Chinese, including grammar analysis, vocabulary explanation, and language point expansion
+
+Requirements:
+- Language: ${languageName}
+- Difficulty: ${difficultyLevel}
+- Type: ${request.type}
+- Question format: Multiple choice with 4 options each
+- Include vocabulary words and grammar points for each question
+- Provide detailed explanations for correct answers
+
+`;
+        if (userCapability) {
+            prompt += `User's current capability:
+- Overall level: ${userCapability.overallLevel}
+- Vocabulary capability: ${userCapability.vocabularyCapability?.estimatedVocabularySize || 'Unknown'} words
+- Grammar score: ${userCapability.grammarCapability?.overallGrammarScore || 'Unknown'}
+- Strengths: ${userCapability.strengths?.join(', ') || 'None specified'}
+- Weaknesses: ${userCapability.weaknesses?.join(', ') || 'None specified'}
+
+`;
+        }
+        if (request.focusAreas && request.focusAreas.length > 0) {
+            prompt += `Focus areas: ${request.focusAreas.join(', ')}\n`;
+        }
+        if (request.vocabularyWords && request.vocabularyWords.length > 0) {
+            prompt += `Include these vocabulary words: ${request.vocabularyWords.join(', ')}\n`;
+        }
+        if (request.grammarPoints && request.grammarPoints.length > 0) {
+            prompt += `Include these grammar points: ${request.grammarPoints.join(', ')}\n`;
+        }
+        if (request.additionalPrompt) {
+            prompt += `
+🔥 PRIORITY USER REQUIREMENTS (WEIGHT: HIGH):
+${request.additionalPrompt}
+
+IMPORTANT: The above user requirements should be given HIGH PRIORITY in question generation. 
+Ensure the generated questions strongly reflect these specific requirements while maintaining 
+the language and difficulty standards.
+
+`;
+        }
+        prompt += `
+DETAILED EXPLANATION REQUIREMENTS:
+Each explanation must include (in Chinese):
+1. Detailed grammar analysis of the correct answer
+2. Vocabulary meanings and usage
+3. Grammar structure explanation with examples
+4. Analysis of why wrong options are incorrect
+5. Related language point extensions
+6. Practical application scenarios and examples
+7. At least 100 characters of detailed explanation
+
+CRITICAL FORMATTING REQUIREMENTS - FOLLOW EXACTLY:
+1. Return ONLY a valid JSON object - NO markdown, NO code blocks, NO extra text
+2. Use EXACT field names and structure as shown below
+3. "options" must be an ARRAY of strings in format ["A. text", "B. text", "C. text", "D. text"]
+4. "correctAnswer" must be ONLY a single letter: "A", "B", "C", or "D"
+5. "vocabularyWords" must be an ARRAY of strings, NOT objects
+6. "grammarPoints" must be an ARRAY of strings
+7. All explanations must be in detailed Chinese (中文) with at least 100 characters
+8. DO NOT use object format for options like {"A": "text", "B": "text"}
+
+REQUIRED JSON FORMAT (copy this structure EXACTLY - do not change anything):
+{
+  "title": "Practice group title",
+  "description": "Brief description of the practice content",
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "content": "Question text in ${languageName}",
+      "options": ["A. First option in ${languageName}", "B. Second option in ${languageName}", "C. Third option in ${languageName}", "D. Fourth option in ${languageName}"],
+      "correctAnswer": "A",
+      "explanation": "详细的中文解析，包含语法分析、词汇解释、语言点扩展等，至少100字",
+      "vocabularyWords": ["word1", "word2", "word3"],
+      "grammarPoints": ["grammar point 1", "grammar point 2"],
+      "difficulty": 3
+    }
+  ]
+}
+
+STRICT VALIDATION CHECKLIST - MUST PASS ALL:
+- ✓ JSON is valid and parseable
+- ✓ Questions and options are in ${languageName} (target language)
+- ✓ "options" is ARRAY (not object) with exactly 4 strings starting with "A.", "B.", "C.", "D."
+- ✓ "correctAnswer" is single letter only (A, B, C, or D)
+- ✓ "vocabularyWords" is array of strings (not objects with word/translation)
+- ✓ "explanation" is in detailed Chinese with at least 100 characters
+- ✓ NO markdown formatting anywhere
+- ✓ NO object format for options
+
+Return ONLY the JSON object, nothing else.
+
+Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese. ${request.additionalPrompt ? 'PRIORITIZE the user requirements specified above.' : ''} Return ONLY the JSON object, no additional text or formatting.`;
+        return prompt;
     }
     async gatherComprehensiveUserData(request) {
         const data = {};

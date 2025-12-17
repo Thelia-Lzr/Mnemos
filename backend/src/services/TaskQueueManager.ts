@@ -534,16 +534,73 @@ export class TaskQueueManager {
     }
   }
 
-  // 关闭所有队�?
+  // 关闭所有队列
   public async shutdown(): Promise<void> {
-    console.log('🔄 Shutting down task queues...');
+    console.log('Shutting down task queues...');
     
     for (const [taskType, queue] of this.queues) {
       await queue.close();
-      console.log(`�?Queue ${taskType} closed`);
+      console.log(`Queue ${taskType} closed`);
     }
     
-    console.log('�?All task queues shut down');
+    console.log('All task queues shut down');
+  }
+
+  // Manually complete a task (for fallback when queue is not available)
+  public async completeTask(taskId: string, result: any): Promise<void> {
+    const taskStatus: TaskStatus = {
+      taskId,
+      status: TaskExecutionStatus.COMPLETED,
+      progress: 100,
+      retryCount: 0,
+      startedAt: new Date(),
+      completedAt: new Date()
+    };
+    
+    const taskResult: TaskResult = {
+      taskId,
+      success: true,
+      result,
+      executionTime: 0,
+      tokensUsed: 0,
+      retryCount: 0,
+      cached: false,
+      completedAt: new Date()
+    };
+    
+    this.taskStatuses.set(taskId, taskStatus);
+    this.taskResults.set(taskId, taskResult);
+  }
+
+  // Manually fail a task (for fallback when queue is not available)
+  public async failTask(taskId: string, error: Error): Promise<void> {
+    const taskStatus: TaskStatus = {
+      taskId,
+      status: TaskExecutionStatus.FAILED,
+      progress: 0,
+      retryCount: 0,
+      startedAt: new Date(),
+      completedAt: new Date()
+    };
+    
+    const taskResult: TaskResult = {
+      taskId,
+      success: false,
+      error: {
+        message: error.message,
+        code: 'GENERATION_ERROR',
+        details: error.stack,
+        retryable: false
+      },
+      executionTime: 0,
+      tokensUsed: 0,
+      retryCount: 0,
+      cached: false,
+      completedAt: new Date()
+    };
+    
+    this.taskStatuses.set(taskId, taskStatus);
+    this.taskResults.set(taskId, taskResult);
   }
 }
 

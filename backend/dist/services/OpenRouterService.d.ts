@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { TaskType, Language, AIResponse, ModelConfig } from '../types/openrouter';
 export declare class OpenRouterService {
     private client;
@@ -12,7 +11,7 @@ export declare class OpenRouterService {
     private setupRetryInterceptor;
     private shouldRetry;
     selectModel(taskType: TaskType, language: Language): string;
-    callAIStream(model: string, prompt: string, context?: any, userId?: string): Promise<ReadableStream>;
+    callAIStream(model: string, prompt: string, context?: any, userId?: string): Promise<any>;
     private generateMockStream;
     callAI(model: string, prompt: string, context?: any, userId?: string): Promise<AIResponse>;
     private generateMockResponse;

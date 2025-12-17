@@ -469,6 +469,28 @@ export class ReassessmentService {
     }
   }
 
+  private parseJsonField<T>(field: any, defaultValue: T): T {
+    if (!field) return defaultValue;
+    
+    // 如果已经是对象类型，直接返回
+    if (typeof field === 'object' && field !== null) {
+      return field;
+    }
+    
+    // 如果是字符串，尝试解析JSON
+    if (typeof field === 'string') {
+      try {
+        return JSON.parse(field);
+      } catch (error) {
+        console.warn('Failed to parse JSON field in ReassessmentService:', field, error);
+        return defaultValue;
+      }
+    }
+    
+    // 其他类型直接返回默认值
+    return defaultValue;
+  }
+
   private mapRowToReassessmentCase(row: any): ReassessmentCase {
     return {
       id: row.id,
@@ -476,11 +498,11 @@ export class ReassessmentService {
       language: row.language,
       originalAssessmentId: row.original_assessment_id,
       reason: row.reason,
-      focusAreas: JSON.parse(row.focus_areas || '[]'),
-      userObjections: JSON.parse(row.user_objections || '[]'),
+      focusAreas: this.parseJsonField(row.focus_areas, []),
+      userObjections: this.parseJsonField(row.user_objections, []),
       status: row.status,
-      targetedQuestions: JSON.parse(row.targeted_questions || '[]'),
-      userResponses: JSON.parse(row.user_responses || '[]'),
+      targetedQuestions: this.parseJsonField(row.targeted_questions, []),
+      userResponses: this.parseJsonField(row.user_responses, []),
       newAssessmentId: row.new_assessment_id,
       resolutionNotes: row.resolution_notes,
       createdAt: row.created_at,

@@ -293,6 +293,23 @@ class ReassessmentService {
             client.release();
         }
     }
+    parseJsonField(field, defaultValue) {
+        if (!field)
+            return defaultValue;
+        if (typeof field === 'object' && field !== null) {
+            return field;
+        }
+        if (typeof field === 'string') {
+            try {
+                return JSON.parse(field);
+            }
+            catch (error) {
+                console.warn('Failed to parse JSON field in ReassessmentService:', field, error);
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
     mapRowToReassessmentCase(row) {
         return {
             id: row.id,
@@ -300,11 +317,11 @@ class ReassessmentService {
             language: row.language,
             originalAssessmentId: row.original_assessment_id,
             reason: row.reason,
-            focusAreas: JSON.parse(row.focus_areas || '[]'),
-            userObjections: JSON.parse(row.user_objections || '[]'),
+            focusAreas: this.parseJsonField(row.focus_areas, []),
+            userObjections: this.parseJsonField(row.user_objections, []),
             status: row.status,
-            targetedQuestions: JSON.parse(row.targeted_questions || '[]'),
-            userResponses: JSON.parse(row.user_responses || '[]'),
+            targetedQuestions: this.parseJsonField(row.targeted_questions, []),
+            userResponses: this.parseJsonField(row.user_responses, []),
             newAssessmentId: row.new_assessment_id,
             resolutionNotes: row.resolution_notes,
             createdAt: row.created_at,

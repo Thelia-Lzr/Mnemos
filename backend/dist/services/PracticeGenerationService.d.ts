@@ -13,6 +13,7 @@ export interface PracticeGenerationRequest {
     vocabularyWords?: string[];
     grammarPoints?: string[];
     count?: number;
+    additionalPrompt?: string;
 }
 export interface ComprehensivePracticeRequest {
     userId: string;
@@ -33,9 +34,12 @@ export declare class PracticeGenerationService {
     generatePracticeGroupAsync(request: PracticeGenerationRequest): Promise<string>;
     generateComprehensivePractice(request: ComprehensivePracticeRequest): Promise<PracticeGroup>;
     generateVocabularyPractice(userId: string, language: Language, vocabularyWords: string[]): Promise<PracticeGroup>;
+    generateEnhancedPracticeGroup(request: PracticeGenerationRequest): Promise<PracticeGroup>;
+    generateEnhancedPracticeGroupAsync(request: PracticeGenerationRequest): Promise<string>;
     private generatePracticeContent;
     private generateComprehensivePracticeContent;
     private generateVocabularyPracticeContent;
+    private generateEnhancedPracticeContent;
     private buildGenerationPrompt;
     private buildComprehensivePrompt;
     private buildVocabularyPrompt;
@@ -48,6 +52,7 @@ export declare class PracticeGenerationService {
     private calculateCreditCost;
     private getLanguageName;
     private getPracticeTopicName;
+    private buildEnhancedGenerationPrompt;
     private gatherComprehensiveUserData;
 }
 //# sourceMappingURL=PracticeGenerationService.d.ts.map

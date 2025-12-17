@@ -14,6 +14,18 @@ export class TaskController {
     this.asyncTaskManager = AsyncTaskManager.getInstance();
     this.taskResultManager = TaskResultManager.getInstance();
     this.taskQueueManager = TaskQueueManager.getInstance();
+    
+    // Bind methods to preserve 'this' context
+    this.getUserTasks = this.getUserTasks.bind(this);
+    this.getTaskStatus = this.getTaskStatus.bind(this);
+    this.getTaskResult = this.getTaskResult.bind(this);
+    this.cancelTask = this.cancelTask.bind(this);
+    this.retryTask = this.retryTask.bind(this);
+    this.getQueueStatus = this.getQueueStatus.bind(this);
+    this.getBatchStatus = this.getBatchStatus.bind(this);
+    this.cancelBatchTasks = this.cancelBatchTasks.bind(this);
+    this.getTaskStats = this.getTaskStats.bind(this);
+    this.getUserTaskResults = this.getUserTaskResults.bind(this);
   }
 
   // 获取用户任务列表
@@ -48,7 +60,7 @@ export class TaskController {
     }
   }
 
-  // 获取任务状�?
+  // 获取任务状态
   async getTaskStatus(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const errors = validationResult(req);
@@ -70,12 +82,22 @@ export class TaskController {
         return;
       }
 
+      // Get task result if completed
+      let result = null;
+      if (taskStatus.status === 'completed') {
+        const taskResult = await this.asyncTaskManager.getTaskResult(taskId);
+        result = taskResult?.result;
+      }
+
       // 验证任务所有权（简化实现，实际需要从任务数据中验证）
       // TODO: 添加任务所有权验证
 
       res.status(200).json({
         success: true,
-        data: taskStatus
+        data: {
+          ...taskStatus,
+          result
+        }
       });
     } catch (error) {
       next(error);

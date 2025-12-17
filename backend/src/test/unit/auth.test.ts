@@ -1,4 +1,4 @@
-import { AuthController } from './../controllers/AuthController';
+import { AuthController } from '../../controllers/AuthController';
 import { UserFactory } from '../factories/userFactory';
 import { TestHelpers } from '../helpers/testHelpers';
 
@@ -227,5 +227,3 @@ describe('AuthController', () => {
     });
   });
 });
-
-

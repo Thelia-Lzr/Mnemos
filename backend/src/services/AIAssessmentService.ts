@@ -131,7 +131,7 @@ export class AIAssessmentService {
       }
     `;
 
-    const response = await this.aiService.callAI('gpt-4', prompt, {
+    const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
       temperature: 0.2,
       max_tokens: 3000
     });
@@ -161,7 +161,7 @@ export class AIAssessmentService {
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
 
-    const response = await this.aiService.callAI('gpt-4', prompt, {
+    const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
       temperature: 0.2,
       max_tokens: 3000
     });
@@ -191,7 +191,7 @@ export class AIAssessmentService {
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
 
-    const response = await this.aiService.callAI('gpt-4', prompt, {
+    const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
       temperature: 0.2,
       max_tokens: 3000
     });
@@ -221,7 +221,7 @@ export class AIAssessmentService {
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
 
-    const response = await this.aiService.callAI('gpt-4', prompt, {
+    const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
       temperature: 0.1,
       max_tokens: 4000
     });
@@ -251,7 +251,7 @@ export class AIAssessmentService {
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
 
-    const response = await this.aiService.callAI('gpt-4', prompt, {
+    const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
       temperature: 0.3,
       max_tokens: 3000
     });
@@ -280,12 +280,25 @@ export class AIAssessmentService {
     `;
 
     try {
-      const response = await this.aiService.callAI('gpt-4', prompt, {
+      const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
         temperature: 0.4,
         max_tokens: 1500
       });
 
-      const questions = JSON.parse(response.content);
+      // 清理AI响应，移除markdown代码块标记
+      let cleanContent = response.content.trim();
+      
+      // 移除```json和```标记
+      cleanContent = cleanContent.replace(/^```json\s*/i, '');
+      cleanContent = cleanContent.replace(/\s*```$/, '');
+      
+      // 尝试提取JSON数组
+      const jsonMatch = cleanContent.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        cleanContent = jsonMatch[0];
+      }
+
+      const questions = JSON.parse(cleanContent);
       return Array.isArray(questions) ? questions : [];
     } catch (error) {
       console.error('Error generating targeted reassessment:', error);
@@ -295,13 +308,29 @@ export class AIAssessmentService {
 
   private parseAIResponse(response: string, currentCapability: UserCapability): AIAssessmentResult {
     try {
-      // Extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      // 清理AI响应
+      let cleanResponse = response.trim();
+      
+      // 移除markdown代码块标记
+      cleanResponse = cleanResponse.replace(/^```json\s*/i, '');
+      cleanResponse = cleanResponse.replace(/\s*```$/i, '');
+      
+      // 尝试提取JSON对象（寻找最大的完整JSON对象）
+      let jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON found in response');
       }
+      
+      let jsonStr = jsonMatch[0];
+      
+      // 尝试修复常见的JSON问题
+      // 移除JSON后面的额外文本
+      const jsonEnd = this.findJsonEnd(jsonStr);
+      if (jsonEnd !== -1) {
+        jsonStr = jsonStr.substring(0, jsonEnd + 1);
+      }
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonStr);
       
       // Validate and sanitize the response
       return {
@@ -456,6 +485,44 @@ export class AIAssessmentService {
       },
       suggestedLearningStyle: 'mixed'
     };
+  }
+
+  private findJsonEnd(jsonStr: string): number {
+    let braceCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < jsonStr.length; i++) {
+      const char = jsonStr[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      
+      if (!inString) {
+        if (char === '{') {
+          braceCount++;
+        } else if (char === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            return i;
+          }
+        }
+      }
+    }
+    
+    return -1;
   }
 
   private generateFallbackQuestions(focusAreas: SkillArea[]): string[] {

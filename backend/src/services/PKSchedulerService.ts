@@ -22,7 +22,7 @@ export class PKSchedulerService {
 
     console.log('Starting PK scheduler service...');
     
-    // 立即执行一次清�?
+    // 立即执行一次清�?
     this.performCleanup();
     
     // 设置定期清理
@@ -47,13 +47,19 @@ export class PKSchedulerService {
    */
   private async performCleanup(): Promise<void> {
     try {
-      // 清理过期的匹配请�?
+      // 清理过期的匹配请求
       await this.matchingService.cleanupExpiredRequests();
-      
+    } catch (error) {
+      console.error('Error cleaning up expired requests:', error);
+      // Continue with other cleanup tasks even if this one fails
+    }
+
+    try {
       // 处理未处理的对战奖励
       await this.rewardService.processUnprocessedBattles();
     } catch (error) {
-      console.error('Error during PK cleanup:', error);
+      console.error('Error processing unprocessed battles:', error);
+      // Log but don't throw - this is a background task
     }
   }
 }

@@ -46,6 +46,7 @@ export declare class ReassessmentService {
     private generateReassessmentResult;
     private updateCapabilityFromReassessment;
     private updateKnowledgePoints;
+    private parseJsonField;
     private mapRowToReassessmentCase;
 }
 //# sourceMappingURL=ReassessmentService.d.ts.map

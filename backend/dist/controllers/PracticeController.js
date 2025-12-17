@@ -366,6 +366,80 @@ class PracticeController {
             next(error);
         }
     }
+    async generateEnhancedPractice(req, res, next) {
+        try {
+            const { language = 'en', type = 'general', difficulty = 'intermediate', additionalPrompt, focusAreas = [], vocabularyWords = [], grammarPoints = [], count = 10 } = req.body;
+            if (!language || !type || !difficulty) {
+                res.status(400).json({
+                    success: false,
+                    error: 'Language, type, and difficulty are required'
+                });
+                return;
+            }
+            const practiceParams = {
+                userId: req.user.id,
+                language: language,
+                difficulty: difficulty,
+                type: type,
+                focusAreas: focusAreas,
+                vocabularyWords,
+                grammarPoints,
+                count,
+                additionalPrompt: additionalPrompt?.trim() || undefined
+            };
+            const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
+            res.status(200).json({
+                success: true,
+                data: {
+                    practiceGroup: practiceGroup,
+                    aiAnalysis: additionalPrompt ? {
+                        enhancedWithPrompt: true,
+                        additionalPrompt: additionalPrompt.trim()
+                    } : undefined
+                },
+                message: additionalPrompt
+                    ? `根据您的要求成功生成了${practiceGroup.questions.length}道个性化练习题！`
+                    : `成功生成了${practiceGroup.questions.length}道练习题！`
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    async generateEnhancedPracticeAsync(req, res, next) {
+        try {
+            const { language = 'en', type = 'general', difficulty = 'intermediate', additionalPrompt, focusAreas = [], vocabularyWords = [], grammarPoints = [], count = 10 } = req.body;
+            if (!language || !type || !difficulty) {
+                res.status(400).json({
+                    success: false,
+                    error: 'Language, type, and difficulty are required'
+                });
+                return;
+            }
+            const practiceParams = {
+                userId: req.user.id,
+                language: language,
+                difficulty: difficulty,
+                type: type,
+                focusAreas: focusAreas,
+                vocabularyWords,
+                grammarPoints,
+                count,
+                additionalPrompt: additionalPrompt?.trim() || undefined
+            };
+            const taskId = await this.practiceGenerationService.generateEnhancedPracticeGroupAsync(practiceParams);
+            res.status(202).json({
+                success: true,
+                taskId,
+                message: additionalPrompt
+                    ? '根据您的要求开始生成个性化练习题，请稍候...'
+                    : '开始生成练习题，请稍候...'
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
     async deletePracticeGroup(req, res, next) {
         try {
             const { id } = req.params;
@@ -889,22 +963,43 @@ class PracticeController {
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
             res.write(`data: ${JSON.stringify({ type: 'credit_cost', creditCost: response.creditCost })}\n\n`);
-            const reader = response.stream.getReader();
-            const decoder = new TextDecoder();
-            try {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done)
-                        break;
-                    const chunk = decoder.decode(value, { stream: true });
-                    res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+            let buffer = '';
+            response.stream.on('data', (chunk) => {
+                buffer += chunk.toString('utf8');
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6).trim();
+                        if (data === '[DONE]') {
+                            res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+                            res.end();
+                            return;
+                        }
+                        if (data) {
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                                    const content = parsed.choices[0].delta.content;
+                                    res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+                                }
+                            }
+                            catch (parseError) {
+                                console.warn('Failed to parse SSE data:', data);
+                            }
+                        }
+                    }
                 }
-            }
-            finally {
-                reader.releaseLock();
-            }
-            res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
-            res.end();
+            });
+            response.stream.on('end', () => {
+                res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+                res.end();
+            });
+            response.stream.on('error', (error) => {
+                console.error('Stream error:', error);
+                res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+                res.end();
+            });
         }
         catch (error) {
             next(error);
@@ -984,22 +1079,43 @@ class PracticeController {
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
             res.write(`data: ${JSON.stringify({ type: 'credit_cost', creditCost: response.creditCost })}\n\n`);
-            const reader = response.stream.getReader();
-            const decoder = new TextDecoder();
-            try {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done)
-                        break;
-                    const chunk = decoder.decode(value, { stream: true });
-                    res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+            let buffer = '';
+            response.stream.on('data', (chunk) => {
+                buffer += chunk.toString('utf8');
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6).trim();
+                        if (data === '[DONE]') {
+                            res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+                            res.end();
+                            return;
+                        }
+                        if (data) {
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                                    const content = parsed.choices[0].delta.content;
+                                    res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+                                }
+                            }
+                            catch (parseError) {
+                                console.warn('Failed to parse SSE data:', data);
+                            }
+                        }
+                    }
                 }
-            }
-            finally {
-                reader.releaseLock();
-            }
-            res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
-            res.end();
+            });
+            response.stream.on('end', () => {
+                res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+                res.end();
+            });
+            response.stream.on('error', (error) => {
+                console.error('Stream error:', error);
+                res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+                res.end();
+            });
         }
         catch (error) {
             next(error);

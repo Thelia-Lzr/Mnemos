@@ -188,12 +188,12 @@ export class AsyncTaskManager {
       prompt,
       context,
       maxRetries: 2,
-      timeout: 30000, // 30秒超�?
+      timeout: 30000, // 30秒超�?
       notifyUser: true
     });
   }
 
-  // 查询任务状�?
+  // 查询任务状�?
   public async getTaskStatus(taskId: string): Promise<TaskStatus | null> {
     return await this.taskQueueManager.getTaskStatus(taskId);
   }
@@ -207,7 +207,7 @@ export class AsyncTaskManager {
   public async waitForTaskCompletion(
     taskId: string, 
     timeoutMs: number = 300000, // 默认5分钟超时
-    pollIntervalMs: number = 1000 // 默认1秒轮询间�?
+    pollIntervalMs: number = 1000 // 默认1秒轮询间�?
   ): Promise<TaskResult> {
     const startTime = Date.now();
     
@@ -272,7 +272,7 @@ export class AsyncTaskManager {
     return await this.taskQueueManager.createBatchTasks(fullTasks);
   }
 
-  // 批量查询任务状�?
+  // 批量查询任务状�?
   public async getBatchTaskStatus(taskIds: string[]): Promise<(TaskStatus | null)[]> {
     const promises = taskIds.map(taskId => this.getTaskStatus(taskId));
     return await Promise.all(promises);
@@ -284,12 +284,12 @@ export class AsyncTaskManager {
     return await Promise.all(promises);
   }
 
-  // 获取用户的所有任�?
+  // 获取用户的所有任�?
   public async getUserTasks(userId: string): Promise<TaskStatus[]> {
     return await this.taskQueueManager.getUserTasks(userId);
   }
 
-  // 获取用户的活跃任�?
+  // 获取用户的活跃任�?
   public async getUserActiveTasks(userId: string): Promise<TaskStatus[]> {
     const allTasks = await this.getUserTasks(userId);
     return allTasks.filter(task => 
@@ -308,7 +308,7 @@ export class AsyncTaskManager {
     );
   }
 
-  // 检查任务是否完�?
+  // 检查任务是否完�?
   public async isTaskCompleted(taskId: string): Promise<boolean> {
     const status = await this.getTaskStatus(taskId);
     return status ? [
@@ -319,7 +319,7 @@ export class AsyncTaskManager {
     ].includes(status.status) : false;
   }
 
-  // 检查任务是否成�?
+  // 检查任务是否成�?
   public async isTaskSuccessful(taskId: string): Promise<boolean> {
     const result = await this.getTaskResult(taskId);
     return result ? result.success : false;
@@ -328,6 +328,16 @@ export class AsyncTaskManager {
   // 获取队列统计信息
   public async getQueueMetrics() {
     return await this.taskQueueManager.getQueueMetrics();
+  }
+
+  // Manually complete a task (for fallback when queue is not available)
+  public async completeTask(taskId: string, result: any): Promise<void> {
+    await this.taskQueueManager.completeTask(taskId, result);
+  }
+
+  // Manually fail a task (for fallback when queue is not available)
+  public async failTask(taskId: string, error: Error): Promise<void> {
+    await this.taskQueueManager.failTask(taskId, error);
   }
 }
 

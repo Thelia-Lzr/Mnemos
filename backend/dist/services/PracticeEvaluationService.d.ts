@@ -16,6 +16,7 @@ export declare class PracticeEvaluationService {
     private identifySkillAreas;
     private generateRecommendations;
     private generateCapabilityUpdates;
+    private scheduleAsyncAIAnalysis;
     private generateAICapabilityAnalysis;
     private calculateSkillPerformance;
     private getCurrentSkillScore;

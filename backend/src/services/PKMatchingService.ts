@@ -335,8 +335,14 @@ export class PKMatchingService {
          SET status = 'expired' 
          WHERE status = 'waiting' AND expires_at <= CURRENT_TIMESTAMP`
       );
-    } catch (error) {
+    } catch (error: any) {
+      // Log error but don't throw - this is a background cleanup task
       console.error('Error cleaning up expired requests:', error);
+      
+      // If it's a connection error, the pool will automatically reconnect on next query
+      if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message?.includes('Connection terminated')) {
+        console.warn('Database connection issue detected, pool will reconnect automatically');
+      }
     }
   }
 

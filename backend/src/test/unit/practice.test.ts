@@ -1,4 +1,4 @@
-import { PracticeController } from './../controllers/PracticeController';
+import { PracticeController } from '../../controllers/PracticeController';
 import { UserFactory } from '../factories/userFactory';
 import { PracticeFactory } from '../factories/practiceFactory';
 import { TestHelpers } from '../helpers/testHelpers';
@@ -31,7 +31,8 @@ describe('PracticeController', () => {
     practiceController = new PracticeController(
       mockPracticeGenerationService as any,
       mockPracticeGroupModel as any,
-      mockPracticeEvaluationService as any
+      mockPracticeEvaluationService as any,
+      {} as any // Mock database pool
     );
   });
 
@@ -275,5 +276,3 @@ describe('PracticeController', () => {
     });
   });
 });
-
-

@@ -35,6 +35,8 @@ router.post('/vocabulary-group', practiceController.generateVocabularyPractice.b
 router.get('/history', practiceController.getPracticeHistory.bind(practiceController));
 router.post('/update-capabilities', practiceController.updateCapabilities.bind(practiceController));
 router.post('/generate-ai-practice', practiceController.generateAIPractice.bind(practiceController));
+router.post('/generate-enhanced-practice', practiceController.generateEnhancedPractice.bind(practiceController));
+router.post('/generate-enhanced-practice-async', practiceController.generateEnhancedPracticeAsync.bind(practiceController));
 router.delete('/group/:id', practiceController.deletePracticeGroup.bind(practiceController));
 router.delete('/groups/batch', practiceController.batchDeletePracticeGroups.bind(practiceController));
 router.delete('/history/batch', practiceController.batchDeletePracticeHistory.bind(practiceController));

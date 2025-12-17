@@ -23,6 +23,8 @@ export declare class PracticeController {
     generateVocabularyPractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
     updateCapabilities(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
     generateAIPractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateEnhancedPractice(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
+    generateEnhancedPracticeAsync(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
     deletePracticeGroup(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
     batchDeletePracticeGroups(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;
     batchDeletePracticeHistory(req: AuthRequest, res: Response, next: NextFunction): Promise<void>;

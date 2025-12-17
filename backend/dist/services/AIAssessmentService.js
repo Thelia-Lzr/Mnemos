@@ -93,7 +93,7 @@ class AIAssessmentService {
         "suggestedLearningStyle": "visual|auditory|kinesthetic|mixed"
       }
     `;
-        const response = await this.aiService.callAI('gpt-4', prompt, {
+        const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
             temperature: 0.2,
             max_tokens: 3000
         });
@@ -120,7 +120,7 @@ class AIAssessmentService {
 
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
-        const response = await this.aiService.callAI('gpt-4', prompt, {
+        const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
             temperature: 0.2,
             max_tokens: 3000
         });
@@ -147,7 +147,7 @@ class AIAssessmentService {
 
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
-        const response = await this.aiService.callAI('gpt-4', prompt, {
+        const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
             temperature: 0.2,
             max_tokens: 3000
         });
@@ -174,7 +174,7 @@ class AIAssessmentService {
 
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
-        const response = await this.aiService.callAI('gpt-4', prompt, {
+        const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
             temperature: 0.1,
             max_tokens: 4000
         });
@@ -201,7 +201,7 @@ class AIAssessmentService {
 
       Provide a detailed assessment in the same JSON format as specified in chat analysis.
     `;
-        const response = await this.aiService.callAI('gpt-4', prompt, {
+        const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
             temperature: 0.3,
             max_tokens: 3000
         });
@@ -223,11 +223,18 @@ class AIAssessmentService {
       ["question1", "question2", ...]
     `;
         try {
-            const response = await this.aiService.callAI('gpt-4', prompt, {
+            const response = await this.aiService.callAI(process.env.ASSESSMENT_MODEL || process.env.DEFAULT_AI_MODEL || 'anthropic/claude-haiku-4.5', prompt, {
                 temperature: 0.4,
                 max_tokens: 1500
             });
-            const questions = JSON.parse(response.content);
+            let cleanContent = response.content.trim();
+            cleanContent = cleanContent.replace(/^```json\s*/i, '');
+            cleanContent = cleanContent.replace(/\s*```$/, '');
+            const jsonMatch = cleanContent.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                cleanContent = jsonMatch[0];
+            }
+            const questions = JSON.parse(cleanContent);
             return Array.isArray(questions) ? questions : [];
         }
         catch (error) {
@@ -237,11 +244,19 @@ class AIAssessmentService {
     }
     parseAIResponse(response, currentCapability) {
         try {
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            let cleanResponse = response.trim();
+            cleanResponse = cleanResponse.replace(/^```json\s*/i, '');
+            cleanResponse = cleanResponse.replace(/\s*```$/i, '');
+            let jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                 throw new Error('No JSON found in response');
             }
-            const parsed = JSON.parse(jsonMatch[0]);
+            let jsonStr = jsonMatch[0];
+            const jsonEnd = this.findJsonEnd(jsonStr);
+            if (jsonEnd !== -1) {
+                jsonStr = jsonStr.substring(0, jsonEnd + 1);
+            }
+            const parsed = JSON.parse(jsonStr);
             return {
                 overallScore: this.validateScore(parsed.overallScore),
                 skillScores: this.validateSkillScores(parsed.skillScores),
@@ -384,6 +399,38 @@ class AIAssessmentService {
             },
             suggestedLearningStyle: 'mixed'
         };
+    }
+    findJsonEnd(jsonStr) {
+        let braceCount = 0;
+        let inString = false;
+        let escapeNext = false;
+        for (let i = 0; i < jsonStr.length; i++) {
+            const char = jsonStr[i];
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = !inString;
+                continue;
+            }
+            if (!inString) {
+                if (char === '{') {
+                    braceCount++;
+                }
+                else if (char === '}') {
+                    braceCount--;
+                    if (braceCount === 0) {
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
     }
     generateFallbackQuestions(focusAreas) {
         const questionBank = {

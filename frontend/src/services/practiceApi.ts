@@ -62,6 +62,13 @@ export interface CreateAIPracticeRequest {
   difficulty?: string;
 }
 
+export interface CreateEnhancedPracticeRequest {
+  language: string;
+  type: string;
+  difficulty: string;
+  additionalPrompt?: string;
+}
+
 export interface SubmitPracticeRequest {
   answers: Array<{
     questionId: string;
@@ -190,6 +197,45 @@ class PracticeApi {
     };
   }> {
     const response = await api.post('/practice/generate-ai-practice', request);
+    return response.data.data;
+  }
+
+  /**
+   * Create an enhanced practice group with optional additional prompt
+   */
+  async createEnhancedPracticeGroup(request: CreateEnhancedPracticeRequest): Promise<{
+    practiceGroup: PracticeGroup;
+    aiAnalysis?: {
+      detectedIntent?: string;
+      confidence?: number;
+      parameters?: any;
+    };
+  }> {
+    const response = await api.post('/practice/generate-enhanced-practice', request);
+    return response.data.data;
+  }
+
+  /**
+   * Create an enhanced practice group asynchronously with optional additional prompt
+   */
+  async createEnhancedPracticeGroupAsync(request: CreateEnhancedPracticeRequest): Promise<{
+    taskId: string;
+    message: string;
+  }> {
+    const response = await api.post('/practice/generate-enhanced-practice-async', request);
+    return response.data;
+  }
+
+  /**
+   * Get task status
+   */
+  async getTaskStatus(taskId: string): Promise<{
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    result?: PracticeGroup;
+    error?: string;
+    progress?: number;
+  }> {
+    const response = await api.get(`/tasks/${taskId}/status`);
     return response.data.data;
   }
 

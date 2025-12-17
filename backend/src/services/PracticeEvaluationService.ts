@@ -52,13 +52,17 @@ export class PracticeEvaluationService {
     // Analyze performance
     const performanceAnalysis = this.analyzePerformance(practiceGroup, questionAnswers);
     
-    // Generate capability updates
+    // Generate capability updates (basic analysis first, AI analysis async)
     const capabilityUpdates = await this.generateCapabilityUpdates(
       userId, 
       practiceGroup, 
       questionAnswers, 
-      accuracy
+      accuracy,
+      false // Skip AI analysis for immediate response
     );
+    
+    // Schedule AI analysis to run asynchronously after response is sent
+    this.scheduleAsyncAIAnalysis(userId, practiceGroup, questionAnswers, accuracy);
     
     // Generate vocabulary updates
     const vocabularyUpdates = this.generateVocabularyUpdates(practiceGroup, questionAnswers);
@@ -324,7 +328,8 @@ export class PracticeEvaluationService {
     userId: string,
     practiceGroup: PracticeGroup,
     questionAnswers: QuestionAnswer[],
-    accuracy: number
+    accuracy: number,
+    useAIAnalysis: boolean = true
   ): Promise<CapabilityUpdate[]> {
     const updates: CapabilityUpdate[] = [];
     
@@ -339,11 +344,26 @@ export class PracticeEvaluationService {
     }
     
     // Use AI to analyze performance and generate more intelligent capability updates
-    const aiAnalysis = await this.generateAICapabilityAnalysis(
-      practiceGroup, 
-      questionAnswers, 
-      currentCapability
-    );
+    let aiAnalysis: {
+      skillAdjustments: Record<string, number>;
+      confidence: number;
+      reasoning: string;
+    };
+    
+    if (useAIAnalysis) {
+      aiAnalysis = await this.generateAICapabilityAnalysis(
+        practiceGroup, 
+        questionAnswers, 
+        currentCapability
+      );
+    } else {
+      // Use basic analysis for immediate response
+      aiAnalysis = {
+        skillAdjustments: {},
+        confidence: 0.5,
+        reasoning: 'Basic analysis - AI analysis scheduled for background processing'
+      };
+    }
     
     // Calculate skill-specific updates based on AI analysis and performance
     const skillPerformance = this.calculateSkillPerformance(practiceGroup, questionAnswers);
@@ -375,6 +395,49 @@ export class PracticeEvaluationService {
     });
     
     return updates;
+  }
+
+  private scheduleAsyncAIAnalysis(
+    userId: string,
+    practiceGroup: PracticeGroup,
+    questionAnswers: QuestionAnswer[],
+    accuracy: number
+  ): void {
+    // Schedule AI analysis to run in background without blocking the response
+    setTimeout(async () => {
+      try {
+        console.log(`Starting background AI analysis for user ${userId}, practice group ${practiceGroup.id}`);
+        
+        // Get current capability
+        const currentCapability = await this.userCapabilityService.getUserCapability(
+          userId, 
+          practiceGroup.language
+        );
+        
+        if (currentCapability) {
+          // Generate AI-enhanced capability updates
+          const aiEnhancedUpdates = await this.generateCapabilityUpdates(
+            userId,
+            practiceGroup,
+            questionAnswers,
+            accuracy,
+            true // Use AI analysis
+          );
+          
+          // Apply the AI-enhanced updates to user capabilities
+          // This could update the database with more accurate capability scores
+          console.log(`Background AI analysis completed for user ${userId}:`, {
+            updatesCount: aiEnhancedUpdates.length,
+            practiceGroupId: practiceGroup.id
+          });
+          
+          // TODO: Optionally update the practice result with AI-enhanced analysis
+          // or store the AI analysis for future reference
+        }
+      } catch (error) {
+        console.warn(`Background AI analysis failed for user ${userId}:`, error);
+      }
+    }, 100); // Start after 100ms to ensure response is sent first
   }
 
   private async generateAICapabilityAnalysis(

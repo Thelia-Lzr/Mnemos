@@ -39,6 +39,7 @@ export declare class AIAssessmentService {
     private validateComprehensionCapability;
     private validateLearningStyle;
     private generateFallbackAssessment;
+    private findJsonEnd;
     private generateFallbackQuestions;
 }
 //# sourceMappingURL=AIAssessmentService.d.ts.map

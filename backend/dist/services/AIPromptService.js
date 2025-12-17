@@ -38,6 +38,12 @@ class AIPromptService {
             taskType: openrouter_1.TaskType.EXERCISE_GENERATION,
             systemPrompt: `你是一个专业的语言学习练习生成器。你需要根据用户的水平和学习需求生成高质量的练习题。
 
+CRITICAL LANGUAGE REQUIREMENTS:
+1. 题目内容（content）必须严格使用用户正在学习的目标语言
+2. 选项（options）必须严格使用用户正在学习的目标语言
+3. 只有在AI认为用户需要理解题目含义时，才可以在题目后用括号添加中文提示
+4. 解析（explanation）必须用中文详细说明，包含语法解释、词汇分析、语言点扩展
+
 生成要求：
 1. 每个练习组必须包含正好10个题目
 2. 题目必须以选择题形式呈现，包含4个选项（A、B、C、D）
@@ -45,12 +51,24 @@ class AIPromptService {
 4. 涵盖重要词汇、语法点和语言应用场景
 5. 每题必须提供详细的答案解析和知识点扩展
 
-重要：无论学习什么语言，所有的题目解析（explanation字段）都必须用中文输出，以便中国用户理解。
+LANGUAGE USAGE EXAMPLES:
+- 学习法语：题目用法语 "Où est la bibliothèque?"，选项用法语，解析用中文详细说明
+- 学习英语：题目用英语 "Where is the library?"，选项用英语，解析用中文详细说明
+- 学习德语：题目用德语 "Wo ist die Bibliothek?"，选项用德语，解析用中文详细说明
+
+DETAILED EXPLANATION REQUIREMENTS:
+解析必须包含：
+1. 正确答案的详细语法分析
+2. 重点词汇的含义和用法
+3. 语法结构的解释和例句
+4. 错误选项的分析说明
+5. 相关语言点的扩展知识
+6. 实际应用场景和例句
 
 输出格式要求：
 - 必须返回纯JSON格式，不要使用markdown代码块（不要用\`\`\`json\`\`\`包围）
 - 包含title、description、questions数组
-- 每个question包含：content、options、correctAnswer、explanation（必须用中文）、vocabularyWords、grammarPoints`,
+- 每个question包含：content（目标语言）、options（目标语言）、correctAnswer、explanation（中文详细解析）、vocabularyWords、grammarPoints`,
             userPromptTemplate: `请为{language}学习者生成一个练习组：
 
 用户水平：{userLevel}
@@ -59,7 +77,13 @@ class AIPromptService {
 重点语法：{focusGrammar}
 练习主题：{topic}
 
-请生成10个选择题，确保题目质量高且适合用户水平。`,
+CRITICAL REQUIREMENTS:
+1. 题目和选项必须严格使用{language}语言
+2. 只有在初学者需要理解时才在题目后添加中文提示
+3. 解析必须用中文详细说明，包含语法分析、词汇解释、语言点扩展
+4. 每个解析至少包含100字的详细说明
+
+请生成10个高质量选择题，确保语言使用正确且解析详细。`,
             parameters: ['language', 'userLevel', 'practiceType', 'focusVocabulary', 'focusGrammar', 'topic'],
             description: '生成个性化语言练习题组'
         });
@@ -138,15 +162,31 @@ class AIPromptService {
             systemPrompt: `你是一个智能意图识别助手。你需要理解用户消息中的操作意图，并判断是否涉及隐私敏感操作。
 
 意图类别：
-- generate_practice: 生成练习
+- generate_practice: 生成练习（用户想要创建练习题）
+- view_practice_history: 查看练习历史
+- start_practice: 开始练习
 - check_progress: 查看学习进度
+- view_capabilities: 查看能力评估
 - view_vocabulary: 查看生词表
+- add_vocabulary: 添加生词
+- start_pk_match: 开始PK匹配
 - check_credits: 查看余额
 - view_statistics: 查看统计信息
-- start_pk_match: 开始PK匹配
 - language_learning: 语言学习对话
+- material_analysis: 材料分析
 - account_management: 账户管理（隐私敏感）
 - payment_operations: 支付操作（隐私敏感）
+
+练习生成参数提取：
+当意图为generate_practice时，需要从用户消息中提取以下参数：
+- type: 练习类型（vocabulary/grammar/comprehensive/general）
+- difficulty: 难度（beginner/intermediate/advanced）
+- language: 目标语言（en/fr/ja等）
+- focusAreas: 重点领域数组
+- vocabularyWords: 特定词汇数组
+- grammarPoints: 语法点数组
+- count: 题目数量
+- topic: 练习主题
 
 隐私保护原则：
 - 涉及密码、账户信息、支付等操作必须标记为隐私敏感
@@ -154,14 +194,31 @@ class AIPromptService {
 
 输出格式要求：
 - 必须返回纯JSON格式，不要使用markdown代码块（不要用\`\`\`json\`\`\`包围）
-- 包含intent、confidence、parameters、isPrivacySensitive、requiresConfirmation字段`,
+- 包含intent、confidence、parameters、isPrivacySensitive、requiresConfirmation字段
+- parameters对象应包含从用户消息中提取的所有相关参数`,
             userPromptTemplate: `请分析用户消息的意图：
 
 用户消息："{userMessage}"
 用户语言：{language}
 对话上下文：{context}
 
-请识别用户的操作意图，提取相关参数，并判断是否涉及隐私敏感操作。`,
+请识别用户的操作意图，提取相关参数，并判断是否涉及隐私敏感操作。
+
+示例输出格式：
+{
+  "intent": "generate_practice",
+  "confidence": 0.9,
+  "parameters": {
+    "type": "vocabulary",
+    "difficulty": "intermediate",
+    "language": "fr",
+    "topic": "购物场景",
+    "focusAreas": ["vocabulary", "conversation"],
+    "count": 10
+  },
+  "isPrivacySensitive": false,
+  "requiresConfirmation": false
+}`,
             parameters: ['userMessage', 'language', 'context'],
             description: '识别用户对话中的功能操作意图'
         });
@@ -221,6 +278,12 @@ class AIPromptService {
             taskType: openrouter_1.TaskType.EXERCISE_GENERATION,
             systemPrompt: `你是一个专业的综合评估练习生成器。基于用户的所有学习数据生成全面的评估练习。
 
+CRITICAL LANGUAGE REQUIREMENTS:
+1. 题目内容（content）必须严格使用用户正在学习的目标语言
+2. 选项（options）必须严格使用用户正在学习的目标语言
+3. 只有在AI认为用户需要理解题目含义时，才可以在题目后用括号添加中文提示
+4. 解析（explanation）必须用中文详细说明，包含深入的语法解释、词汇分析、语言点扩展
+
 生成要求：
 1. 综合考虑用户的能力评估、里程碑进度、生词表状态
 2. 生成10个选择题，涵盖听说读写各项技能
@@ -228,11 +291,19 @@ class AIPromptService {
 4. 重点测试用户的薄弱环节
 5. 包含词汇、语法、阅读理解等多种题型
 
-重要：无论学习什么语言，所有的题目解析（explanation字段）都必须用中文输出，以便中国用户理解。
+DETAILED EXPLANATION REQUIREMENTS:
+解析必须包含：
+1. 正确答案的深入语法分析和语言学解释
+2. 重点词汇的词源、变位、搭配用法
+3. 语法结构的详细解释和多个例句
+4. 错误选项的具体错误原因分析
+5. 相关语言点的系统性扩展知识
+6. 文化背景和实际应用场景
+7. 学习建议和记忆技巧
 
 输出格式要求：
 - 必须返回纯JSON格式，不要使用markdown代码块（不要用\`\`\`json\`\`\`包围）
-- 每题包含详细解析和知识点说明（解析必须用中文）`,
+- 每题包含详细解析和知识点说明（解析必须用中文，至少150字）`,
             userPromptTemplate: `请为{language}学习者生成综合评估练习：
 
 用户能力数据：

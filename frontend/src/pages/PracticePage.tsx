@@ -68,8 +68,28 @@ const PracticePage: React.FC = () => {
   });
 
   // AI practice generation state
-  const [aiMessage, setAiMessage] = useState('');
-  const [useAI, setUseAI] = useState(false);
+  const [additionalPrompt, setAdditionalPrompt] = useState('');
+
+  // Generating practice groups (with taskId)
+  const [generatingPractices, setGeneratingPractices] = useState<Map<string, {
+    taskId: string;
+    title: string;
+    language: string;
+    difficulty: string;
+    type: string;
+  }>>(() => {
+    // Load from localStorage on mount
+    try {
+      const stored = localStorage.getItem('generatingPractices');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return new Map(Object.entries(parsed));
+      }
+    } catch (err) {
+      console.error('Failed to load generating practices from localStorage:', err);
+    }
+    return new Map();
+  });
 
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -80,9 +100,81 @@ const PracticePage: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedPractice, setSelectedPractice] = useState<PracticeGroupData | null>(null);
 
+  // Persist generating practices to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      const obj = Object.fromEntries(generatingPractices.entries());
+      localStorage.setItem('generatingPractices', JSON.stringify(obj));
+    } catch (err) {
+      console.error('Failed to save generating practices to localStorage:', err);
+    }
+  }, [generatingPractices]);
+
   useEffect(() => {
     loadPracticeGroups();
   }, []);
+
+  // Poll for generating practice status
+  useEffect(() => {
+    if (generatingPractices.size === 0) {
+      // Clean up localStorage when no generating practices
+      localStorage.removeItem('generatingPractices');
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      const updatedGenerating = new Map(generatingPractices);
+      let hasChanges = false;
+
+      // Convert Map entries to array for iteration
+      const entries = Array.from(generatingPractices.entries());
+      
+      for (const [taskId, practiceInfo] of entries) {
+        try {
+          const status = await practiceApi.getTaskStatus(taskId);
+          console.log('Task status for', taskId, ':', status);
+          
+          // Check for completed status (case-insensitive)
+          const statusLower = status.status?.toLowerCase();
+          if (statusLower === 'completed' && status.result) {
+            // Task completed, add to practice groups
+            console.log('Task completed, adding practice group:', status.result);
+            setPracticeGroups(prev => [status.result!, ...prev]);
+            updatedGenerating.delete(taskId);
+            hasChanges = true;
+            ErrorHandler.showSuccess(`练习"${practiceInfo.title}"生成完成！`);
+          } else if (statusLower === 'failed') {
+            // Task failed, remove from generating
+            updatedGenerating.delete(taskId);
+            hasChanges = true;
+            ErrorHandler.showError(`练习"${practiceInfo.title}"生成失败：${status.error || '未知错误'}`);
+          } else {
+            console.log('Task still in progress, status:', status.status);
+          }
+        } catch (err) {
+          console.error('Error polling task status:', err);
+          // If task not found (404), remove it from generating list
+          if ((err as any)?.response?.status === 404) {
+            updatedGenerating.delete(taskId);
+            hasChanges = true;
+          }
+        }
+      }
+
+      if (hasChanges) {
+        setGeneratingPractices(updatedGenerating);
+        // Immediately update localStorage after changes
+        if (updatedGenerating.size === 0) {
+          localStorage.removeItem('generatingPractices');
+        } else {
+          const obj = Object.fromEntries(updatedGenerating.entries());
+          localStorage.setItem('generatingPractices', JSON.stringify(obj));
+        }
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [generatingPractices]);
 
   const loadPracticeGroups = async () => {
     try {
@@ -98,38 +190,33 @@ const PracticePage: React.FC = () => {
     }
   };
 
-  const handleCreatePractice = async () => {
+  const handleCreateEnhancedPractice = async () => {
     try {
       setGenerating(true);
-      const practiceGroup = await practiceApi.createPracticeGroup(newPracticeForm);
-      setPracticeGroups(prev => [practiceGroup, ...prev]);
-      setShowCreateDialog(false);
-      setNewPracticeForm({
-        language: 'en',
-        difficulty: 'intermediate',
-        type: 'general',
-        focusAreas: []
-      });
-    } catch (err) {
-      const errorMessage = ErrorHandler.getErrorMessage(err);
-      setError(errorMessage);
-      ErrorHandler.logError(err, 'Create Practice Group');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleCreateAIPractice = async (message: string) => {
-    try {
-      setGenerating(true);
-      const result = await practiceApi.createAIPracticeGroup({
-        message,
+      
+      // Use async enhanced practice generation
+      const result = await practiceApi.createEnhancedPracticeGroupAsync({
         language: newPracticeForm.language,
         type: newPracticeForm.type,
-        difficulty: newPracticeForm.difficulty
+        difficulty: newPracticeForm.difficulty,
+        additionalPrompt: additionalPrompt.trim() || undefined
       });
       
-      setPracticeGroups(prev => [result.practiceGroup, ...prev]);
+      // Create a placeholder practice group for "generating" state
+      const placeholderTitle = additionalPrompt.trim() 
+        ? `${getTypeDisplayName(newPracticeForm.type)} - ${additionalPrompt.trim().substring(0, 20)}...`
+        : `${getTypeDisplayName(newPracticeForm.type)} - ${getLanguageDisplayName(newPracticeForm.language)}`;
+      
+      // Add to generating practices map
+      setGeneratingPractices(prev => new Map(prev.set(result.taskId, {
+        taskId: result.taskId,
+        title: placeholderTitle,
+        language: newPracticeForm.language,
+        difficulty: newPracticeForm.difficulty,
+        type: newPracticeForm.type
+      })));
+      
+      // Close dialog and reset form
       setShowCreateDialog(false);
       setNewPracticeForm({
         language: 'en',
@@ -137,16 +224,15 @@ const PracticePage: React.FC = () => {
         type: 'general',
         focusAreas: []
       });
+      setAdditionalPrompt('');
       
-      // Show success message with AI analysis
-      if (result.aiAnalysis) {
-        console.log('AI Analysis:', result.aiAnalysis);
-        ErrorHandler.showSuccess(`AI成功分析您的需求并生成了${result.practiceGroup.questions.length}道练习题！`);
-      }
+      // Show success message
+      ErrorHandler.showSuccess(result.message);
+      
     } catch (err) {
       const errorMessage = ErrorHandler.getErrorMessage(err);
       setError(errorMessage);
-      ErrorHandler.logError(err, 'Create AI Practice Group');
+      ErrorHandler.logError(err, 'Create Enhanced Practice Group');
     } finally {
       setGenerating(false);
     }
@@ -210,6 +296,35 @@ const PracticePage: React.FC = () => {
     setPracticeToDelete(null);
   };
 
+  const handleClearGenerating = () => {
+    // Use window.confirm to bypass eslint warning
+    if (window.confirm('确定要清除所有"生成中"的练习组吗？')) {
+      setGeneratingPractices(new Map());
+      localStorage.removeItem('generatingPractices');
+      ErrorHandler.showSuccess('已清除所有生成中的练习组');
+    }
+  };
+
+  // Helper functions for display names
+  const getTypeDisplayName = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'general': '综合练习',
+      'vocabulary': '词汇练习',
+      'grammar': '语法练习',
+      'comprehensive': '全面评估'
+    };
+    return typeMap[type] || '练习';
+  };
+
+  const getLanguageDisplayName = (language: string): string => {
+    const languageMap: Record<string, string> = {
+      'en': '英语',
+      'ja': '日语',
+      'fr': '法语'
+    };
+    return languageMap[language] || language;
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('zh-CN', {
       year: 'numeric',
@@ -254,13 +369,24 @@ const PracticePage: React.FC = () => {
         <Typography variant="h4" component="h1">
           练习中心
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setShowCreateDialog(true)}
-        >
-          创建练习
-        </Button>
+        <Stack direction="row" spacing={2}>
+          {generatingPractices.size > 0 && (
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={handleClearGenerating}
+            >
+              清除生成中 ({generatingPractices.size})
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setShowCreateDialog(true)}
+          >
+            创建练习
+          </Button>
+        </Stack>
       </Box>
 
       {error && (
@@ -293,6 +419,60 @@ const PracticePage: React.FC = () => {
         </Card>
       ) : (
         <Grid container spacing={3}>
+          {/* Generating practice groups */}
+          {Array.from(generatingPractices.values()).map((generatingPractice) => (
+            <Grid item xs={12} md={6} lg={4} key={generatingPractice.taskId}>
+              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', opacity: 0.7 }}>
+                <CardContent sx={{ flex: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                    <Typography variant="h6" component="h2" sx={{ flex: 1 }}>
+                      {generatingPractice.title}
+                    </Typography>
+                    <CircularProgress size={20} sx={{ ml: 1 }} />
+                  </Box>
+                  
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    AI正在生成练习题，请稍候...
+                  </Typography>
+
+                  <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                    <Chip
+                      label={generatingPractice.difficulty}
+                      color="default"
+                      size="small"
+                      variant="outlined"
+                    />
+                    <Chip
+                      label={getLanguageDisplayName(generatingPractice.language)}
+                      size="small"
+                      variant="outlined"
+                    />
+                    <Chip
+                      label={getTypeDisplayName(generatingPractice.type)}
+                      size="small"
+                      variant="outlined"
+                    />
+                  </Stack>
+
+                  <Typography variant="caption" color="text.secondary">
+                    生成中...
+                  </Typography>
+                </CardContent>
+
+                <Box sx={{ p: 2, pt: 0 }}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    disabled
+                  >
+                    生成中...
+                  </Button>
+                </Box>
+              </Card>
+            </Grid>
+          ))}
+
+          {/* Existing practice groups */}
           {practiceGroups.map((group) => (
             <Grid item xs={12} md={6} lg={4} key={group.id}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -381,96 +561,75 @@ const PracticePage: React.FC = () => {
         <DialogTitle>创建新练习</DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
-            {/* AI Toggle */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="body2">使用AI智能生成</Typography>
-              <Button
-                variant={useAI ? 'contained' : 'outlined'}
-                size="small"
-                onClick={() => setUseAI(!useAI)}
+            {/* Basic Practice Configuration - Always Visible */}
+            <FormControl fullWidth>
+              <InputLabel>语言</InputLabel>
+              <Select
+                value={newPracticeForm.language}
+                label="语言"
+                onChange={(e) => setNewPracticeForm(prev => ({ ...prev, language: e.target.value }))}
               >
-                {useAI ? '🤖 AI模式' : '📝 手动模式'}
-              </Button>
-            </Box>
+                <MenuItem value="en">英语</MenuItem>
+                <MenuItem value="ja">日语</MenuItem>
+                <MenuItem value="fr">法语</MenuItem>
+              </Select>
+            </FormControl>
 
-            {useAI ? (
-              /* AI Practice Generation */
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="描述您想要的练习"
-                placeholder="例如：我想练习英语购物场景的对话，包含价格询问和商品描述..."
-                value={aiMessage}
-                onChange={(e) => setAiMessage(e.target.value)}
-                helperText="AI将根据您的描述自动生成个性化练习题"
-              />
-            ) : (
-              /* Manual Practice Configuration */
-              <>
-                <FormControl fullWidth>
-                  <InputLabel>语言</InputLabel>
-                  <Select
-                    value={newPracticeForm.language}
-                    label="语言"
-                    onChange={(e) => setNewPracticeForm(prev => ({ ...prev, language: e.target.value }))}
-                  >
-                    <MenuItem value="en">英语</MenuItem>
-                    <MenuItem value="ja">日语</MenuItem>
-                    <MenuItem value="fr">法语</MenuItem>
-                  </Select>
-                </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>难度</InputLabel>
+              <Select
+                value={newPracticeForm.difficulty}
+                label="难度"
+                onChange={(e) => setNewPracticeForm(prev => ({ ...prev, difficulty: e.target.value }))}
+              >
+                <MenuItem value="beginner">初级</MenuItem>
+                <MenuItem value="intermediate">中级</MenuItem>
+                <MenuItem value="advanced">高级</MenuItem>
+              </Select>
+            </FormControl>
 
-                <FormControl fullWidth>
-                  <InputLabel>难度</InputLabel>
-                  <Select
-                    value={newPracticeForm.difficulty}
-                    label="难度"
-                    onChange={(e) => setNewPracticeForm(prev => ({ ...prev, difficulty: e.target.value }))}
-                  >
-                    <MenuItem value="beginner">初级</MenuItem>
-                    <MenuItem value="intermediate">中级</MenuItem>
-                    <MenuItem value="advanced">高级</MenuItem>
-                  </Select>
-                </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>类型</InputLabel>
+              <Select
+                value={newPracticeForm.type}
+                label="类型"
+                onChange={(e) => setNewPracticeForm(prev => ({ ...prev, type: e.target.value }))}
+              >
+                <MenuItem value="general">综合练习</MenuItem>
+                <MenuItem value="vocabulary">词汇练习</MenuItem>
+                <MenuItem value="grammar">语法练习</MenuItem>
+                <MenuItem value="comprehensive">全面评估</MenuItem>
+              </Select>
+            </FormControl>
 
-                <FormControl fullWidth>
-                  <InputLabel>类型</InputLabel>
-                  <Select
-                    value={newPracticeForm.type}
-                    label="类型"
-                    onChange={(e) => setNewPracticeForm(prev => ({ ...prev, type: e.target.value }))}
-                  >
-                    <MenuItem value="general">综合练习</MenuItem>
-                    <MenuItem value="vocabulary">词汇练习</MenuItem>
-                    <MenuItem value="grammar">语法练习</MenuItem>
-                    <MenuItem value="comprehensive">全面评估</MenuItem>
-                  </Select>
-                </FormControl>
-              </>
-            )}
+            {/* Optional AI Enhancement */}
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="额外提示词（可选）"
+              placeholder="例如：重点练习购物场景对话，包含价格询问和商品描述..."
+              value={additionalPrompt}
+              onChange={(e) => setAdditionalPrompt(e.target.value)}
+              helperText="AI将根据您的额外要求优化练习内容生成"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
             setShowCreateDialog(false);
-            setUseAI(false);
-            setAiMessage('');
+            setAdditionalPrompt('');
           }}>
             取消
           </Button>
           <Button
             onClick={() => {
-              if (useAI && aiMessage.trim()) {
-                handleCreateAIPractice(aiMessage.trim());
-              } else if (!useAI) {
-                handleCreatePractice();
-              }
+              handleCreateEnhancedPractice();
             }}
             variant="contained"
-            disabled={generating || (useAI && !aiMessage.trim())}
+            disabled={generating}
           >
-            {generating ? <CircularProgress size={20} /> : useAI ? '🤖 AI生成' : '创建'}
+            {generating ? <CircularProgress size={20} /> : '🤖 智能生成'}
           </Button>
         </DialogActions>
       </Dialog>
