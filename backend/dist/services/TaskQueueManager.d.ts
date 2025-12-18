@@ -28,5 +28,7 @@ export declare class TaskQueueManager {
     private storeTaskResult;
     cleanupExpiredTasks(): Promise<void>;
     shutdown(): Promise<void>;
+    completeTask(taskId: string, result: any): Promise<void>;
+    failTask(taskId: string, error: Error): Promise<void>;
 }
 //# sourceMappingURL=TaskQueueManager.d.ts.map

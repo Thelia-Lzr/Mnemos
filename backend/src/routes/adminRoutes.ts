@@ -32,6 +32,7 @@ router.get('/user-stats', adminController.getUserStats.bind(adminController));
 
 // Task queue management
 router.get('/queue-metrics', adminController.getQueueMetrics.bind(adminController));
+router.get('/tasks', adminController.getAllTasks.bind(adminController));
 router.get('/failed-tasks', adminController.getFailedTasks.bind(adminController));
 router.post('/retry-failed-tasks', adminController.retryFailedTasks.bind(adminController));
 router.post('/clear-queue', adminController.clearQueue.bind(adminController));

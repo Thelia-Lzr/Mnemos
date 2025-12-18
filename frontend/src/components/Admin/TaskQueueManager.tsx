@@ -25,7 +25,8 @@ import {
   Grid,
   FormControlLabel,
   Switch,
-  LinearProgress
+  LinearProgress,
+  MenuItem
 } from '@mui/material';
 import SecurityUtils from '../../utils/security';
 import api from '../../services/api';
@@ -36,17 +37,20 @@ import {
   Clear as ClearIcon
 } from '@mui/icons-material';
 
-interface FailedTask {
+interface Task {
   id: string;
   user_id: string;
   type: string;
+  status: string;
   priority: number;
   created_at: string;
-  started_at: string;
-  completed_at: string;
-  error_message: string;
+  started_at?: string;
+  completed_at?: string;
+  progress: number;
   retry_count: number;
-  context: any;
+  execution_time?: number;
+  tokens_used?: number;
+  error_message?: string;
 }
 
 interface QueueMetrics {
@@ -65,8 +69,8 @@ interface QueueMetrics {
 
 const TaskQueueManager: React.FC = () => {
   const [metrics, setMetrics] = useState<QueueMetrics | null>(null);
-  const [failedTasks, setFailedTasks] = useState<FailedTask[]>([]);
-  const [totalFailedTasks, setTotalFailedTasks] = useState(0);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [totalTasks, setTotalTasks] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
@@ -74,6 +78,8 @@ const TaskQueueManager: React.FC = () => {
   const [clearDays, setClearDays] = useState(7);
   const [includeCompleted, setIncludeCompleted] = useState(true);
   const [includeFailed, setIncludeFailed] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -88,7 +94,7 @@ const TaskQueueManager: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [currentPage]);
+  }, [currentPage, statusFilter, typeFilter]);
 
   const fetchData = async () => {
     try {
@@ -96,19 +102,33 @@ const TaskQueueManager: React.FC = () => {
       const token = SecurityUtils.getSecureItem<string>('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Fetch queue metrics and failed tasks in parallel
-      const [metricsRes, failedTasksRes] = await Promise.all([
+      // Build query parameters
+      const params = new URLSearchParams({
+        limit: tasksPerPage.toString(),
+        offset: ((currentPage - 1) * tasksPerPage).toString()
+      });
+
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+
+      if (typeFilter !== 'all') {
+        params.append('type', typeFilter);
+      }
+
+      // Fetch queue metrics and tasks in parallel
+      const [metricsRes, tasksRes] = await Promise.all([
         api.get('/admin/queue-metrics'),
-        api.get(`/admin/failed-tasks?limit=${tasksPerPage}&offset=${(currentPage - 1) * tasksPerPage}`)
+        api.get(`/admin/tasks?${params.toString()}`)
       ]);
 
       if (metricsRes.data.success) {
         setMetrics(metricsRes.data.data);
       }
 
-      if (failedTasksRes.data.success) {
-        setFailedTasks(failedTasksRes.data.data.tasks);
-        setTotalFailedTasks(failedTasksRes.data.data.totalCount);
+      if (tasksRes.data.success) {
+        setTasks(tasksRes.data.data.tasks);
+        setTotalTasks(tasksRes.data.data.totalCount);
       }
     } catch (error) {
       console.error('Failed to fetch queue data:', error);
@@ -166,7 +186,7 @@ const TaskQueueManager: React.FC = () => {
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
-      setSelectedTasks(failedTasks.map(task => task.id));
+      setSelectedTasks(tasks.map(task => task.id));
     } else {
       setSelectedTasks([]);
     }
@@ -341,15 +361,59 @@ const TaskQueueManager: React.FC = () => {
         </Box>
       )}
 
-      {/* Failed Tasks */}
+      {/* Task Filters */}
+      <Box sx={{ mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              select
+              label="Status Filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              fullWidth
+              size="small"
+            >
+              <MenuItem value="all">All Statuses</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="processing">Processing</MenuItem>
+              <MenuItem value="completed">Completed</MenuItem>
+              <MenuItem value="failed">Failed</MenuItem>
+              <MenuItem value="cancelled">Cancelled</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              select
+              label="Type Filter"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              fullWidth
+              size="small"
+            >
+              <MenuItem value="all">All Types</MenuItem>
+              <MenuItem value="practice_generation">Practice Generation</MenuItem>
+              <MenuItem value="chat_response">Chat Response</MenuItem>
+              <MenuItem value="material_analysis">Material Analysis</MenuItem>
+              <MenuItem value="level_assessment">Level Assessment</MenuItem>
+              <MenuItem value="daily_recommendation">Daily Recommendation</MenuItem>
+              <MenuItem value="vocabulary_extraction">Vocabulary Extraction</MenuItem>
+            </TextField>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* All Tasks */}
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">Failed Tasks</Typography>
+          <Typography variant="h6">
+            Tasks ({statusFilter !== 'all' ? statusFilter : 'all'})
+          </Typography>
           {selectedTasks.length > 0 && (
             <Button
               variant="contained"
               startIcon={<RetryIcon />}
               onClick={() => handleRetryTasks(selectedTasks)}
+              disabled={!tasks.some(task => selectedTasks.includes(task.id) && task.status === 'failed')}
             >
               Retry Selected ({selectedTasks.length})
             </Button>
@@ -363,21 +427,24 @@ const TaskQueueManager: React.FC = () => {
                 <TableCell padding="checkbox">
                   <input
                     type="checkbox"
-                    checked={failedTasks && selectedTasks.length === failedTasks.length && failedTasks.length > 0}
+                    checked={tasks && selectedTasks.length === tasks.length && tasks.length > 0}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </TableCell>
                 <TableCell>Task ID</TableCell>
+                <TableCell>Status</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>User ID</TableCell>
                 <TableCell>Created</TableCell>
+                <TableCell>Progress</TableCell>
                 <TableCell>Retry Count</TableCell>
+                <TableCell>Execution Time</TableCell>
                 <TableCell>Error</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {failedTasks.map((task) => (
+              {tasks.map((task) => (
                 <TableRow key={task.id}>
                   <TableCell padding="checkbox">
                     <input
@@ -392,7 +459,14 @@ const TaskQueueManager: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={task.type} size="small" />
+                    <Chip 
+                      label={task.status} 
+                      size="small" 
+                      color={getStatusColor(task.status) as any}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={task.type} size="small" variant="outlined" />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
@@ -401,31 +475,49 @@ const TaskQueueManager: React.FC = () => {
                   </TableCell>
                   <TableCell>{formatDate(task.created_at)}</TableCell>
                   <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={task.progress} 
+                        sx={{ width: 60, height: 6 }}
+                      />
+                      <Typography variant="body2" sx={{ minWidth: 35 }}>
+                        {task.progress}%
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
                     <Chip 
                       label={task.retry_count} 
                       size="small" 
-                      color={task.retry_count >= 3 ? 'error' : 'warning'}
+                      color={task.retry_count >= 3 ? 'error' : task.retry_count > 0 ? 'warning' : 'default'}
                     />
                   </TableCell>
                   <TableCell>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        maxWidth: 200, 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}
-                      title={task.error_message}
-                    >
-                      {task.error_message}
-                    </Typography>
+                    {task.execution_time ? `${(task.execution_time / 1000).toFixed(1)}s` : '-'}
+                  </TableCell>
+                  <TableCell>
+                    {task.error_message ? (
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          maxWidth: 200, 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: 'error.main'
+                        }}
+                        title={task.error_message}
+                      >
+                        {task.error_message}
+                      </Typography>
+                    ) : '-'}
                   </TableCell>
                   <TableCell>
                     <IconButton 
                       onClick={() => handleRetryTasks([task.id])} 
                       size="small"
-                      disabled={task.retry_count >= 3}
+                      disabled={task.status !== 'failed' || task.retry_count >= 3}
                     >
                       <RetryIcon />
                     </IconButton>
@@ -437,10 +529,10 @@ const TaskQueueManager: React.FC = () => {
         </TableContainer>
 
         {/* Pagination */}
-        {totalFailedTasks > tasksPerPage && (
+        {totalTasks > tasksPerPage && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
             <Pagination
-              count={Math.ceil(totalFailedTasks / tasksPerPage)}
+              count={Math.ceil(totalTasks / tasksPerPage)}
               page={currentPage}
               onChange={(event, page) => setCurrentPage(page)}
               color="primary"

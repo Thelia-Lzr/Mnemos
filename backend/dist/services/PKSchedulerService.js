@@ -30,10 +30,15 @@ class PKSchedulerService {
     async performCleanup() {
         try {
             await this.matchingService.cleanupExpiredRequests();
+        }
+        catch (error) {
+            console.error('Error cleaning up expired requests:', error);
+        }
+        try {
             await this.rewardService.processUnprocessedBattles();
         }
         catch (error) {
-            console.error('Error during PK cleanup:', error);
+            console.error('Error processing unprocessed battles:', error);
         }
     }
 }

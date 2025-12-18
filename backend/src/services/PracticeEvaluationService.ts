@@ -37,6 +37,14 @@ export class PracticeEvaluationService {
     const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
     const averageTimePerQuestion = totalTime > 0 ? totalTime / totalQuestions : 0;
     
+    // Debug logging
+    console.log(`Practice evaluation summary:`);
+    console.log(`  Total questions: ${totalQuestions}`);
+    console.log(`  Correct answers: ${correctAnswers}`);
+    console.log(`  Accuracy: ${accuracy}%`);
+    console.log(`  Submitted answers count: ${submittedAnswers.length}`);
+    console.log(`  Question answers count: ${questionAnswers.length}`);
+    
     // Generate wrong answers summary for quick access
     const wrongAnswersSummary = questionAnswers
       .filter(qa => !qa.isCorrect)
@@ -153,14 +161,14 @@ export class PracticeEvaluationService {
       const timeSpent = submitted?.timeSpent || 0;
       const attempts = submitted?.attempts || 1;
       
-      // Log for debugging
-      if (userAnswer && !isCorrect) {
-        console.log(`Answer evaluation for question ${question.id}:`);
-        console.log(`  Original user answer: "${userAnswer}"`);
-        console.log(`  Normalized user answer: "${normalizedUserAnswer}"`);
-        console.log(`  Correct answer: "${question.correctAnswer}"`);
-        console.log(`  Is correct: ${isCorrect}`);
-      }
+      // Log for debugging - log all answers, not just incorrect ones
+      console.log(`Answer evaluation for question ${question.id}:`);
+      console.log(`  Original user answer: "${userAnswer}"`);
+      console.log(`  Normalized user answer: "${normalizedUserAnswer}"`);
+      console.log(`  Correct answer: "${question.correctAnswer}"`);
+      console.log(`  Question options: [${question.options.join(', ')}]`);
+      console.log(`  Is correct: ${isCorrect}`);
+      console.log(`  Option index found: ${question.options.findIndex(option => option === userAnswer)}`);
       
       // Return enhanced answer structure with detailed information
       return {

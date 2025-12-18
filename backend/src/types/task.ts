@@ -54,10 +54,16 @@ export interface TaskStatus {
   status: TaskExecutionStatus;
   progress: number;  // 0-100
   
+  // 任务信息
+  userId?: string;
+  type?: AITaskType;
+  priority?: TaskPriority;
+  createdAt?: Date | string;
+  
   // 执行信息
-  startedAt?: Date;
-  completedAt?: Date;
-  estimatedCompletion?: Date;
+  startedAt?: Date | string;
+  completedAt?: Date | string;
+  estimatedCompletion?: Date | string;
   
   // 错误信息
   error?: TaskError;

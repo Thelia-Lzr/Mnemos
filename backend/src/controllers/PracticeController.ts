@@ -515,12 +515,25 @@ export class PracticeController {
       // TODO: Implement proper async task queue when Redis is available
       try {
         const { v4: uuidv4 } = await import('uuid');
+        const { AITaskType, TaskPriority } = await import('../types/task');
         const taskId = uuidv4();
+        
+        // Create task using AsyncTaskManager
+        const asyncTaskManager = (await import('../services/AsyncTaskManager')).AsyncTaskManager.getInstance();
+        
+        // Create a proper task with all required information
+        const createdTaskId = await asyncTaskManager.createPracticeGenerationTask(
+          req.user!.id,
+          'anthropic/claude-haiku-4.5', // Default model
+          JSON.stringify(practiceParams), // Store params as prompt
+          practiceParams, // Store params as context
+          TaskPriority.NORMAL
+        );
         
         // Send immediate response with taskId
         res.status(202).json({ 
           success: true, 
-          taskId,
+          taskId: createdTaskId,
           message: additionalPrompt 
             ? '根据您的要求开始生成个性化练习题，请稍候...'
             : '开始生成练习题，请稍候...'
@@ -529,15 +542,15 @@ export class PracticeController {
         // Generate practice in background (don't await)
         setImmediate(async () => {
           try {
+            // Update task status to processing
+            await asyncTaskManager.startTask(createdTaskId);
+            
             const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
-            // Store result in AsyncTaskManager for retrieval
-            const asyncTaskManager = (await import('../services/AsyncTaskManager')).AsyncTaskManager.getInstance();
-            // Store the practice group directly as the result (not wrapped in an object)
-            await asyncTaskManager.completeTask(taskId, practiceGroup);
+            // Complete the task with the result
+            await asyncTaskManager.completeTask(createdTaskId, practiceGroup);
           } catch (error) {
             console.error('Background practice generation failed:', error);
-            const asyncTaskManager = (await import('../services/AsyncTaskManager')).AsyncTaskManager.getInstance();
-            await asyncTaskManager.failTask(taskId, error as Error);
+            await asyncTaskManager.failTask(createdTaskId, error as Error);
           }
         });
       } catch (error) {

@@ -427,14 +427,39 @@ class PracticeController {
                 count,
                 additionalPrompt: additionalPrompt?.trim() || undefined
             };
-            const taskId = await this.practiceGenerationService.generateEnhancedPracticeGroupAsync(practiceParams);
-            res.status(202).json({
-                success: true,
-                taskId,
-                message: additionalPrompt
-                    ? '根据您的要求开始生成个性化练习题，请稍候...'
-                    : '开始生成练习题，请稍候...'
-            });
+            try {
+                const { v4: uuidv4 } = await Promise.resolve().then(() => __importStar(require('uuid')));
+                const taskId = uuidv4();
+                res.status(202).json({
+                    success: true,
+                    taskId,
+                    message: additionalPrompt
+                        ? '根据您的要求开始生成个性化练习题，请稍候...'
+                        : '开始生成练习题，请稍候...'
+                });
+                setImmediate(async () => {
+                    try {
+                        const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
+                        const asyncTaskManager = (await Promise.resolve().then(() => __importStar(require('../services/AsyncTaskManager')))).AsyncTaskManager.getInstance();
+                        await asyncTaskManager.completeTask(taskId, practiceGroup);
+                    }
+                    catch (error) {
+                        console.error('Background practice generation failed:', error);
+                        const asyncTaskManager = (await Promise.resolve().then(() => __importStar(require('../services/AsyncTaskManager')))).AsyncTaskManager.getInstance();
+                        await asyncTaskManager.failTask(taskId, error);
+                    }
+                });
+            }
+            catch (error) {
+                const practiceGroup = await this.practiceGenerationService.generateEnhancedPracticeGroup(practiceParams);
+                res.status(200).json({
+                    success: true,
+                    data: {
+                        practiceGroup: practiceGroup
+                    },
+                    message: '练习生成完成！'
+                });
+            }
         }
         catch (error) {
             next(error);

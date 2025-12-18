@@ -411,12 +411,61 @@ class TaskQueueManager {
         }
     }
     async shutdown() {
-        console.log('🔄 Shutting down task queues...');
+        console.log('Shutting down task queues...');
         for (const [taskType, queue] of this.queues) {
             await queue.close();
-            console.log(`�?Queue ${taskType} closed`);
+            console.log(`Queue ${taskType} closed`);
         }
-        console.log('�?All task queues shut down');
+        console.log('All task queues shut down');
+    }
+    async completeTask(taskId, result) {
+        const taskStatus = {
+            taskId,
+            status: task_1.TaskExecutionStatus.COMPLETED,
+            progress: 100,
+            retryCount: 0,
+            startedAt: new Date(),
+            completedAt: new Date()
+        };
+        const taskResult = {
+            taskId,
+            success: true,
+            result,
+            executionTime: 0,
+            tokensUsed: 0,
+            retryCount: 0,
+            cached: false,
+            completedAt: new Date()
+        };
+        this.taskStatuses.set(taskId, taskStatus);
+        this.taskResults.set(taskId, taskResult);
+    }
+    async failTask(taskId, error) {
+        const taskStatus = {
+            taskId,
+            status: task_1.TaskExecutionStatus.FAILED,
+            progress: 0,
+            retryCount: 0,
+            startedAt: new Date(),
+            completedAt: new Date()
+        };
+        const taskResult = {
+            taskId,
+            success: false,
+            error: {
+                message: error.message,
+                code: 'GENERATION_ERROR',
+                details: error.stack,
+                retryable: false
+            },
+            executionTime: 0,
+            tokensUsed: 0,
+            retryCount: 0,
+            cached: false,
+            completedAt: new Date()
+        };
+        this.taskStatuses.set(taskId, taskStatus);
+        this.taskResults.set(taskId, taskResult);
     }
 }
 exports.TaskQueueManager = TaskQueueManager;

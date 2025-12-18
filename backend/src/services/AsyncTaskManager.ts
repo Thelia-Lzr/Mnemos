@@ -330,6 +330,16 @@ export class AsyncTaskManager {
     return await this.taskQueueManager.getQueueMetrics();
   }
 
+  // 获取所有任务（管理员功能）
+  public async getAllTasks(): Promise<TaskStatus[]> {
+    return await this.taskQueueManager.getAllTasks();
+  }
+
+  // 删除任务（管理员功能）
+  public async deleteTask(taskId: string): Promise<boolean> {
+    return await this.taskQueueManager.deleteTask(taskId);
+  }
+
   // Manually complete a task (for fallback when queue is not available)
   public async completeTask(taskId: string, result: any): Promise<void> {
     await this.taskQueueManager.completeTask(taskId, result);
@@ -338,6 +348,11 @@ export class AsyncTaskManager {
   // Manually fail a task (for fallback when queue is not available)
   public async failTask(taskId: string, error: Error): Promise<void> {
     await this.taskQueueManager.failTask(taskId, error);
+  }
+
+  // Update task status to processing
+  public async startTask(taskId: string): Promise<void> {
+    await this.taskQueueManager.startTask(taskId);
   }
 }
 

@@ -3,17 +3,27 @@ import { AuthRequest } from '../middleware/auth';
 import { PaymentService } from '../services/PaymentService';
 import { CreditService } from '../services/CreditService';
 import { OpenRouterService, createOpenRouterService } from '../services/OpenRouterService';
+import { AsyncTaskManager } from '../services/AsyncTaskManager';
+import { TaskResultManager } from '../services/TaskResultManager';
+import { TaskQueueManager } from '../services/TaskQueueManager';
+import { TaskExecutionStatus } from '../types/task';
 import { pool } from '../config/database';
 
 export class AdminController {
   private paymentService: PaymentService;
   private creditService: CreditService;
   private openRouterService: OpenRouterService;
+  private asyncTaskManager: AsyncTaskManager;
+  private taskResultManager: TaskResultManager;
+  private taskQueueManager: TaskQueueManager;
 
   constructor() {
     this.paymentService = new PaymentService(pool);
     this.creditService = new CreditService(pool);
     this.openRouterService = createOpenRouterService();
+    this.asyncTaskManager = AsyncTaskManager.getInstance();
+    this.taskResultManager = TaskResultManager.getInstance();
+    this.taskQueueManager = TaskQueueManager.getInstance();
   }
 
   // ============ Package Management ============
@@ -704,69 +714,59 @@ export class AdminController {
    */
   async getQueueMetrics(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Get task statistics from async_tasks table
-      const metricsQuery = `
-        SELECT 
-          status,
-          COUNT(*) as count,
-          AVG(EXTRACT(EPOCH FROM (completed_at - created_at))) as avg_processing_time
-        FROM async_tasks
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY status
-      `;
+      // Get metrics from AsyncTaskManager
+      const queueMetrics = await this.asyncTaskManager.getQueueMetrics();
+      
+      // Get all tasks for additional statistics
+      const allTasks = await this.asyncTaskManager.getAllTasks();
+      
+      // Calculate status breakdown
+      const statusBreakdown = allTasks.reduce((acc, task) => {
+        acc[task.status] = (acc[task.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-      const metricsResult = await pool.query(metricsQuery);
+      // Calculate processing times for completed tasks
+      const completedTasks = allTasks.filter(task => 
+        task.status === 'completed' && task.startedAt && task.completedAt
+      );
+      
+      const processingTimes = completedTasks.map(task => {
+        const started = new Date(task.startedAt!).getTime();
+        const completed = new Date(task.completedAt!).getTime();
+        return (completed - started) / 1000; // Convert to seconds
+      });
 
-      // Get overall statistics
-      const overallQuery = `
-        SELECT 
-          COUNT(*) as total_tasks,
-          COUNT(CASE WHEN status = 'queued' THEN 1 END) as queued_tasks,
-          COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing_tasks,
-          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_tasks,
-          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_tasks,
-          AVG(CASE WHEN status = 'completed' AND completed_at IS NOT NULL 
-              THEN EXTRACT(EPOCH FROM (completed_at - created_at)) END) as avg_completion_time
-        FROM async_tasks
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-      `;
+      const averageProcessingTime = processingTimes.length > 0 
+        ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length 
+        : 0;
 
-      const overallResult = await pool.query(overallQuery);
-      const stats = overallResult.rows[0];
-
-      // Calculate throughput (tasks per minute in last hour)
-      const throughputQuery = `
-        SELECT COUNT(*) as completed_last_hour
-        FROM async_tasks
-        WHERE status = 'completed' 
-        AND completed_at >= NOW() - INTERVAL '1 hour'
-      `;
-
-      const throughputResult = await pool.query(throughputQuery);
-      const throughputPerMinute = parseInt(throughputResult.rows[0].completed_last_hour) / 60;
+      // Calculate throughput (completed tasks in last hour)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const recentCompletedTasks = completedTasks.filter(task => 
+        new Date(task.completedAt!) > oneHourAgo
+      );
+      const throughputPerMinute = recentCompletedTasks.length / 60;
 
       // Calculate error rate
-      const totalTasks = parseInt(stats.total_tasks) || 1;
-      const failedTasks = parseInt(stats.failed_tasks) || 0;
+      const totalTasks = allTasks.length || 1;
+      const failedTasks = allTasks.filter(task => task.status === 'failed').length;
       const errorRate = (failedTasks / totalTasks) * 100;
 
       res.status(200).json({
         success: true,
         data: {
-          totalTasks: parseInt(stats.total_tasks) || 0,
-          queuedTasks: parseInt(stats.queued_tasks) || 0,
-          processingTasks: parseInt(stats.processing_tasks) || 0,
-          completedTasks: parseInt(stats.completed_tasks) || 0,
-          failedTasks: parseInt(stats.failed_tasks) || 0,
+          totalTasks: allTasks.length,
+          queuedTasks: allTasks.filter(task => task.status === TaskExecutionStatus.QUEUED).length,
+          processingTasks: allTasks.filter(task => task.status === TaskExecutionStatus.PROCESSING).length,
+          completedTasks: allTasks.filter(task => task.status === TaskExecutionStatus.COMPLETED).length,
+          failedTasks: failedTasks,
           averageWaitTime: 0, // Would need more complex calculation
-          averageProcessingTime: parseFloat(stats.avg_completion_time) || 0,
+          averageProcessingTime: Math.round(averageProcessingTime * 100) / 100,
           throughputPerMinute: Math.round(throughputPerMinute * 100) / 100,
-          resourceUtilization: 0, // Would need system metrics
+          resourceUtilization: queueMetrics.resourceUtilization || 0,
           errorRate: Math.round(errorRate * 100) / 100,
-          statusBreakdown: metricsResult.rows.reduce((acc, row) => {
-            acc[row.status] = parseInt(row.count);
-            return acc;
-          }, {} as Record<string, number>)
+          statusBreakdown
         }
       });
     } catch (error) {
@@ -781,27 +781,41 @@ export class AdminController {
     try {
       const { limit = 50, offset = 0 } = req.query;
 
-      const query = `
-        SELECT 
-          id, user_id, type, priority, created_at, started_at, completed_at,
-          error_message, retry_count, context
-        FROM async_tasks
-        WHERE status = 'failed'
-        ORDER BY created_at DESC
-        LIMIT $1 OFFSET $2
-      `;
+      // Get all tasks and filter failed ones
+      const allTasks = await this.asyncTaskManager.getAllTasks();
+      const failedTasks = allTasks.filter(task => task.status === TaskExecutionStatus.FAILED);
+      
+      // Sort by creation date (newest first)
+      failedTasks.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      // Apply pagination
+      const startIndex = parseInt(offset as string);
+      const endIndex = startIndex + parseInt(limit as string);
+      const paginatedTasks = failedTasks.slice(startIndex, endIndex);
 
-      const result = await pool.query(query, [parseInt(limit as string), parseInt(offset as string)]);
-
-      // Get total count
-      const countQuery = `SELECT COUNT(*) FROM async_tasks WHERE status = 'failed'`;
-      const countResult = await pool.query(countQuery);
+      // Format tasks for frontend
+      const formattedTasks = paginatedTasks.map(task => ({
+        id: task.taskId,
+        user_id: task.userId,
+        type: task.type,
+        priority: task.priority,
+        created_at: task.createdAt,
+        started_at: task.startedAt,
+        completed_at: task.completedAt,
+        error_message: task.error?.message || 'Unknown error',
+        retry_count: task.retryCount || 0,
+        context: {} // TaskStatus doesn't have context field
+      }));
 
       res.status(200).json({
         success: true,
         data: {
-          tasks: result.rows,
-          totalCount: parseInt(countResult.rows[0].count)
+          tasks: formattedTasks,
+          totalCount: failedTasks.length
         }
       });
     } catch (error) {
@@ -824,26 +838,92 @@ export class AdminController {
         return;
       }
 
-      // Update failed tasks to queued status for retry
-      const query = `
-        UPDATE async_tasks 
-        SET status = 'queued', 
-            started_at = NULL, 
-            completed_at = NULL, 
-            error_message = NULL,
-            retry_count = retry_count + 1,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ANY($1) AND status = 'failed' AND retry_count < 3
-        RETURNING id
-      `;
+      // Retry tasks using AsyncTaskManager
+      const retryResults = await Promise.all(
+        taskIds.map(async (taskId: string) => {
+          try {
+            const success = await this.asyncTaskManager.retryTask(taskId);
+            return { taskId, success };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return { taskId, success: false, error: errorMessage };
+          }
+        })
+      );
 
-      const result = await pool.query(query, [taskIds]);
+      const successfulRetries = retryResults.filter(result => result.success);
 
       res.status(200).json({
         success: true,
         data: {
-          retriedTasks: result.rows.length,
-          taskIds: result.rows.map(row => row.id)
+          retriedTasks: successfulRetries.length,
+          taskIds: successfulRetries.map(result => result.taskId),
+          failures: retryResults.filter(result => !result.success)
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get all tasks (admin function)
+   */
+  async getAllTasks(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { 
+        status, 
+        type, 
+        userId, 
+        limit = 50, 
+        offset = 0 
+      } = req.query;
+
+      // Get all tasks
+      let allTasks = await this.asyncTaskManager.getAllTasks();
+      
+      // Apply filters
+      if (status && status !== 'all') {
+        allTasks = allTasks.filter(task => task.status === status);
+      }
+      
+      if (type && type !== 'all') {
+        allTasks = allTasks.filter(task => task.type === type);
+      }
+      
+      if (userId) {
+        allTasks = allTasks.filter(task => task.userId === userId);
+      }
+
+      // Apply pagination
+      const startIndex = parseInt(offset as string);
+      const endIndex = startIndex + parseInt(limit as string);
+      const paginatedTasks = allTasks.slice(startIndex, endIndex);
+
+      // Format tasks for frontend
+      const formattedTasks = paginatedTasks.map(task => ({
+        id: task.taskId,
+        user_id: task.userId || 'unknown',
+        type: task.type || 'unknown',
+        status: task.status,
+        priority: task.priority || 0,
+        created_at: task.createdAt,
+        started_at: task.startedAt,
+        completed_at: task.completedAt,
+        progress: task.progress || 0,
+        retry_count: task.retryCount || 0,
+        execution_time: task.executionTime || 0,
+        tokens_used: task.tokensUsed || 0,
+        error_message: task.error?.message || null
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          tasks: formattedTasks,
+          totalCount: allTasks.length,
+          limit: parseInt(limit as string),
+          offset: parseInt(offset as string)
         }
       });
     } catch (error) {
@@ -858,11 +938,7 @@ export class AdminController {
     try {
       const { days = 7, includeCompleted = true, includeFailed = false } = req.body;
 
-      const conditions: string[] = [];
-      if (includeCompleted) conditions.push("status = 'completed'");
-      if (includeFailed) conditions.push("status = 'failed'");
-
-      if (conditions.length === 0) {
+      if (!includeCompleted && !includeFailed) {
         res.status(400).json({
           success: false,
           message: 'Must specify at least one status to clear'
@@ -870,18 +946,34 @@ export class AdminController {
         return;
       }
 
-      const query = `
-        DELETE FROM async_tasks 
-        WHERE (${conditions.join(' OR ')})
-        AND created_at < NOW() - INTERVAL '${parseInt(days)} days'
-      `;
+      // Get all tasks
+      const allTasks = await this.asyncTaskManager.getAllTasks();
+      
+      // Filter tasks to clear based on criteria
+      const cutoffDate = new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000);
+      const tasksToDelete = allTasks.filter(task => {
+        const taskDate = new Date(task.createdAt || task.startedAt || Date.now());
+        const isOldEnough = taskDate < cutoffDate;
+        const shouldInclude = (includeCompleted && task.status === TaskExecutionStatus.COMPLETED) || 
+                             (includeFailed && task.status === TaskExecutionStatus.FAILED);
+        return isOldEnough && shouldInclude;
+      });
 
-      const result = await pool.query(query);
+      // Delete tasks using AsyncTaskManager
+      let deletedCount = 0;
+      for (const task of tasksToDelete) {
+        try {
+          await this.asyncTaskManager.deleteTask(task.taskId);
+          deletedCount++;
+        } catch (error) {
+          console.warn(`Failed to delete task ${task.taskId}:`, error);
+        }
+      }
 
       res.status(200).json({
         success: true,
         data: {
-          deletedTasks: result.rowCount || 0,
+          deletedTasks: deletedCount,
           clearedDays: parseInt(days)
         }
       });

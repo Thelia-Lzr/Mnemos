@@ -215,6 +215,12 @@ class AsyncTaskManager {
     async getQueueMetrics() {
         return await this.taskQueueManager.getQueueMetrics();
     }
+    async completeTask(taskId, result) {
+        await this.taskQueueManager.completeTask(taskId, result);
+    }
+    async failTask(taskId, error) {
+        await this.taskQueueManager.failTask(taskId, error);
+    }
 }
 exports.AsyncTaskManager = AsyncTaskManager;
 //# sourceMappingURL=AsyncTaskManager.js.map

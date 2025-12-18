@@ -27,5 +27,7 @@ export declare class AsyncTaskManager {
     isTaskCompleted(taskId: string): Promise<boolean>;
     isTaskSuccessful(taskId: string): Promise<boolean>;
     getQueueMetrics(): Promise<import("../types/task").QueueMetrics>;
+    completeTask(taskId: string, result: any): Promise<void>;
+    failTask(taskId: string, error: Error): Promise<void>;
 }
 //# sourceMappingURL=AsyncTaskManager.d.ts.map

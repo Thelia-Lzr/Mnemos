@@ -218,6 +218,9 @@ class PKMatchingService {
         }
         catch (error) {
             console.error('Error cleaning up expired requests:', error);
+            if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message?.includes('Connection terminated')) {
+                console.warn('Database connection issue detected, pool will reconnect automatically');
+            }
         }
     }
     async getMatchingStats(language) {

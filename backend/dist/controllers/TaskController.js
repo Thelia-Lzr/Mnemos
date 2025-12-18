@@ -10,6 +10,16 @@ class TaskController {
         this.asyncTaskManager = AsyncTaskManager_1.AsyncTaskManager.getInstance();
         this.taskResultManager = TaskResultManager_1.TaskResultManager.getInstance();
         this.taskQueueManager = TaskQueueManager_1.TaskQueueManager.getInstance();
+        this.getUserTasks = this.getUserTasks.bind(this);
+        this.getTaskStatus = this.getTaskStatus.bind(this);
+        this.getTaskResult = this.getTaskResult.bind(this);
+        this.cancelTask = this.cancelTask.bind(this);
+        this.retryTask = this.retryTask.bind(this);
+        this.getQueueStatus = this.getQueueStatus.bind(this);
+        this.getBatchStatus = this.getBatchStatus.bind(this);
+        this.cancelBatchTasks = this.cancelBatchTasks.bind(this);
+        this.getTaskStats = this.getTaskStats.bind(this);
+        this.getUserTaskResults = this.getUserTaskResults.bind(this);
     }
     async getUserTasks(req, res, next) {
         try {
@@ -57,9 +67,17 @@ class TaskController {
                 });
                 return;
             }
+            let result = null;
+            if (taskStatus.status === 'completed') {
+                const taskResult = await this.asyncTaskManager.getTaskResult(taskId);
+                result = taskResult?.result;
+            }
             res.status(200).json({
                 success: true,
-                data: taskStatus
+                data: {
+                    ...taskStatus,
+                    result
+                }
             });
         }
         catch (error) {

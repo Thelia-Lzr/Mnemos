@@ -254,24 +254,50 @@ class PracticeGenerationService {
         const difficultyLevel = difficulty || request.difficulty || PracticeGroup_1.DifficultyLevel.INTERMEDIATE;
         let prompt = `Generate a ${languageName} language learning practice group with exactly 10 questions.
 
-CRITICAL LANGUAGE REQUIREMENTS:
-1. Question content (content) must be STRICTLY in ${languageName} (the target language)
-2. All options must be STRICTLY in ${languageName} (the target language)
-3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
-4. Explanations (explanation) must be in detailed Chinese, including grammar analysis, vocabulary explanation, and language point expansion
+🚨🚨🚨 ABSOLUTE LANGUAGE REQUIREMENTS - ZERO TOLERANCE FOR VIOLATIONS 🚨🚨🚨
+
+📝 QUESTION CONTENT RULES (ZERO EXCEPTIONS):
+1. Question "content" field: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+2. All options A/B/C/D: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+3. "correctAnswer" field: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+4. 绝对禁止在题目和选项中使用中文
+5. 绝对禁止混合语言
+
+📖 EXPLANATION RULES (SMART BALANCE):
+1. "explanation" field: 主要使用中文，确保中国人能看得懂
+2. 解析必须详细，至少150-200个中文字符
+3. 💡 可以适当插入${languageName}单词或短语进行解释，但必须用中文说明其含义
+4. 📝 例如："动词 'avoir'（拥有）在这里表示..." 或 "短语 'il y a'（有）的用法是..."
+5. 🎯 重点：整体解析让中国学习者容易理解，适当的目标语言内容有助于学习
+6. 必须包含语法分析、词汇解释、错误选项分析
+
+🔍 LANGUAGE VERIFICATION CHECKLIST:
+✅ 题目内容 = ${languageName} (${request.language.toUpperCase()}) ONLY
+✅ 所有选项 = ${languageName} (${request.language.toUpperCase()}) ONLY  
+✅ 正确答案 = ${languageName} (${request.language.toUpperCase()}) ONLY
+✅ 详细解析 = 中文 ONLY
+❌ 不要在题目中使用中文
 
 Requirements:
-- Language: ${languageName}
+- Target Language: ${languageName} (${request.language.toUpperCase()})
+- Explanation Language: 中文 (Chinese)
 - Difficulty: ${difficultyLevel}
 - Type: ${request.type}
 - Question format: Multiple choice with 4 options each
 - Include vocabulary words and grammar points for each question
-- Provide detailed explanations for correct answers
 
-LANGUAGE USAGE EXAMPLES:
-- Learning French: Question in French "Où est la bibliothèque?", options in French, explanation in detailed Chinese
-- Learning English: Question in English "Where is the library?", options in English, explanation in detailed Chinese
-- Learning German: Question in German "Wo ist die Bibliothek?", options in German, explanation in detailed Chinese
+🎯 ANSWER DISTRIBUTION REQUIREMENTS:
+- 正确答案必须均匀分布在A、B、C、D四个选项中
+- 避免答案过于集中（例如：不要出现10道题答案全是A的情况）
+- 理想分布：每个选项（A/B/C/D）作为正确答案的次数应该相近
+- 例如10道题：A出现2-3次，B出现2-3次，C出现2-3次，D出现2-3次
+
+🧠 CONFUSION/DISTRACTOR STRATEGY:
+- 当用户要求特定知识点的题目时，适当添加混淆项来检测理解深度
+- 设计巧妙的干扰选项，测试用户是否对知识点有过于泛化的理解
+- 包含相似但不同的语法结构、近义词、易混淆的用法等
+- 例如：如果练习"过去时"，可以包含一些"现在完成时"的混淆选项
+- 目标：帮助用户精确掌握知识点，避免模糊理解
 
 `;
         if (userCapability) {
@@ -344,18 +370,49 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese. Return ONLY the JSON object, no additional text or formatting.`;
+🚨 FINAL CRITICAL REMINDER 🚨
+- 题目和选项：必须100%使用${languageName}语言
+- 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
+- 解析整体必须让中国学习者容易理解
+
+Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     buildComprehensivePrompt(request, userData) {
         const languageName = this.getLanguageName(request.language);
         let prompt = `Generate a comprehensive ${languageName} language assessment practice with exactly 10 questions.
 
-CRITICAL LANGUAGE REQUIREMENTS:
-1. Question content (content) must be STRICTLY in ${languageName} (the target language)
-2. All options must be STRICTLY in ${languageName} (the target language)
-3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
-4. Explanations (explanation) must be in detailed Chinese, including deep grammar analysis, vocabulary explanation, and systematic language point expansion
+🚨🚨🚨 ABSOLUTE LANGUAGE REQUIREMENTS - ZERO TOLERANCE FOR VIOLATIONS 🚨🚨🚨
+
+📝 QUESTION CONTENT RULES (ZERO EXCEPTIONS):
+1. Question "content" field: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+2. All options A/B/C/D: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+3. "correctAnswer" field: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+4. 绝对禁止在题目和选项中使用中文
+5. 绝对禁止混合语言
+
+📖 EXPLANATION RULES (SMART BALANCE):
+1. "explanation" field: 主要使用中文，确保中国人能看得懂
+2. 解析必须详细，至少150-200个中文字符
+3. � 严可以适当插入${languageName}单词或短语进行解释，但必须用中文说明其含义
+4. � 严例如："动词 'avoir'（拥有）在这里表示..." 或 "短语 'il y a'（有）的用法是..."
+5. 🎯 重点：整体解析让中国学习者容易理解，适当的目标语言内容有助于学习
+6. 必须包含语法分析、词汇解释、错误选项分析
+
+🔍 LANGUAGE VERIFICATION CHECKLIST:
+✅ 题目内容 = ${languageName} (${request.language.toUpperCase()}) ONLY
+✅ 所有选项 = ${languageName} (${request.language.toUpperCase()}) ONLY  
+✅ 正确答案 = ${languageName} (${request.language.toUpperCase()}) ONLY
+✅ 详细解析 = 主要中文，可适当插入目标语言进行解释
+❌ 绝对不允许在题目和选项中混合语言
+❌ 绝对不允许在题目中使用中文
+✅ 解析中可适当使用目标语言单词配中文解释
+
+🎯 QUESTION TYPE DIVERSITY REQUIREMENTS:
+- 题目形式必须多样化，不能全部是选择题
+- 可以包含：填空题、判断题、四选一选择题、排序题等
+- 每个练习组应该包含至少2-3种不同的题型
+- 根据语言特点选择合适的题型组合
 
 This should be a comprehensive evaluation covering multiple skill areas based on the user's complete learning profile.
 
@@ -394,6 +451,19 @@ Generate questions that:
 3. Focus on identified weak areas for improvement
 4. Include some challenging questions to assess growth potential
 5. Cover both learned vocabulary and new words at appropriate difficulty
+
+🎯 ANSWER DISTRIBUTION REQUIREMENTS:
+- 正确答案必须均匀分布在A、B、C、D四个选项中
+- 避免答案过于集中（例如：不要出现10道题答案全是A的情况）
+- 理想分布：每个选项（A/B/C/D）作为正确答案的次数应该相近
+- 例如10道题：A出现2-3次，B出现2-3次，C出现2-3次，D出现2-3次
+
+🧠 CONFUSION/DISTRACTOR STRATEGY:
+- 当用户要求特定知识点的题目时，适当添加混淆项来检测理解深度
+- 设计巧妙的干扰选项，测试用户是否对知识点有过于泛化的理解
+- 包含相似但不同的语法结构、近义词、易混淆的用法等
+- 例如：如果练习"过去时"，可以包含一些"现在完成时"的混淆选项
+- 目标：帮助用户精确掌握知识点，避免模糊理解
 
 DETAILED EXPLANATION REQUIREMENTS:
 Each explanation must include (in Chinese):
@@ -446,7 +516,12 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese with comprehensive analysis. Return ONLY the JSON object, no additional text or formatting.`;
+🚨 FINAL CRITICAL REMINDER 🚨
+- 题目和选项：必须100%使用${languageName}语言
+- 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
+- 解析整体必须让中国学习者容易理解
+
+Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with comprehensive analysis and appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     buildVocabularyPrompt(language, vocabularyWords, userCapability) {
@@ -454,11 +529,37 @@ Ensure exactly 10 questions are generated. Questions and options MUST be in ${la
         let prompt = `Generate a ${languageName} vocabulary practice with exactly 10 questions focusing on these words:
 ${vocabularyWords.join(', ')}
 
-CRITICAL LANGUAGE REQUIREMENTS:
-1. Question content (content) must be STRICTLY in ${languageName} (the target language)
-2. All options must be STRICTLY in ${languageName} (the target language)
-3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
-4. Explanations (explanation) must be in detailed Chinese, including vocabulary analysis, usage explanation, and related knowledge expansion
+🚨🚨🚨 ABSOLUTE LANGUAGE REQUIREMENTS - ZERO TOLERANCE FOR VIOLATIONS 🚨🚨🚨
+
+📝 QUESTION CONTENT RULES (ZERO EXCEPTIONS):
+1. Question "content" field: 必须100%使用${languageName}语言 (${language.toUpperCase()})
+2. All options A/B/C/D: 必须100%使用${languageName}语言 (${language.toUpperCase()})
+3. "correctAnswer" field: 必须100%使用${languageName}语言 (${language.toUpperCase()})
+4. 绝对禁止在题目和选项中使用中文
+5. 绝对禁止混合语言
+
+📖 EXPLANATION RULES (SMART BALANCE):
+1. "explanation" field: 主要使用中文，确保中国人能看得懂
+2. 解析必须详细，至少150-200个中文字符
+3. � 严可以适当插入${languageName}单词或短语进行解释，但必须用中文说明其含义
+4. � 例如："动词 '出avoir'（拥有）在这里表示..." 或 "短语 'il y a'（有）的用法是..."
+5. 🎯 重点：整体解析让中国学习者容易理解，适当的目标语言内容有助于学习
+6. 必须包含语法分析、词汇解释、错误选项分析
+
+🔍 LANGUAGE VERIFICATION CHECKLIST:
+✅ 题目内容 = ${languageName} (${language.toUpperCase()}) ONLY
+✅ 所有选项 = ${languageName} (${language.toUpperCase()}) ONLY  
+✅ 正确答案 = ${languageName} (${language.toUpperCase()}) ONLY
+✅ 详细解析 = 主要中文，可适当插入目标语言进行解释
+❌ 绝对不允许在题目和选项中混合语言
+❌ 绝对不允许在题目中使用中文
+✅ 解析中可适当使用目标语言单词配中文解释
+
+🎯 QUESTION TYPE DIVERSITY REQUIREMENTS:
+- 题目形式必须多样化，不能全部是选择题
+- 可以包含：填空题、判断题、四选一选择题、排序题等
+- 每个练习组应该包含至少2-3种不同的题型
+- 根据语言特点选择合适的题型组合
 
 `;
         if (userCapability) {
@@ -476,6 +577,19 @@ Create questions that test:
 3. Synonyms and antonyms
 4. Collocations and common phrases
 5. Different forms of the words
+
+🎯 ANSWER DISTRIBUTION REQUIREMENTS:
+- 正确答案必须均匀分布在A、B、C、D四个选项中
+- 避免答案过于集中（例如：不要出现10道题答案全是A的情况）
+- 理想分布：每个选项（A/B/C/D）作为正确答案的次数应该相近
+- 例如10道题：A出现2-3次，B出现2-3次，C出现2-3次，D出现2-3次
+
+🧠 CONFUSION/DISTRACTOR STRATEGY:
+- 当用户要求特定知识点的题目时，适当添加混淆项来检测理解深度
+- 设计巧妙的干扰选项，测试用户是否对知识点有过于泛化的理解
+- 包含相似但不同的语法结构、近义词、易混淆的用法等
+- 例如：如果练习"过去时"，可以包含一些"现在完成时"的混淆选项
+- 目标：帮助用户精确掌握知识点，避免模糊理解
 
 DETAILED EXPLANATION REQUIREMENTS:
 Each explanation must include (in Chinese):
@@ -527,7 +641,12 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated, focusing on the provided vocabulary words. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese. Return ONLY the JSON object, no additional text or formatting.`;
+🚨 FINAL CRITICAL REMINDER 🚨
+- 题目和选项：必须100%使用${languageName}语言
+- 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
+- 解析整体必须让中国学习者容易理解
+
+Ensure exactly 10 questions are generated, focusing on the provided vocabulary words. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     parsePracticeResponse(content) {
@@ -752,19 +871,58 @@ Ensure exactly 10 questions are generated, focusing on the provided vocabulary w
         const difficultyLevel = difficulty || request.difficulty || PracticeGroup_1.DifficultyLevel.INTERMEDIATE;
         let prompt = `Generate a ${languageName} language learning practice group with exactly 10 questions.
 
-CRITICAL LANGUAGE REQUIREMENTS:
-1. Question content (content) must be STRICTLY in ${languageName} (the target language)
-2. All options must be STRICTLY in ${languageName} (the target language)
-3. Only add Chinese hints in parentheses if AI thinks the user needs to understand the question meaning
-4. Explanations (explanation) must be in detailed Chinese, including grammar analysis, vocabulary explanation, and language point expansion
+🚨🚨🚨 ABSOLUTE LANGUAGE REQUIREMENTS - ZERO TOLERANCE FOR VIOLATIONS 🚨🚨🚨
+
+📝 QUESTION CONTENT RULES (ZERO EXCEPTIONS):
+1. Question "content" field: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+2. All options A/B/C/D: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+3. "correctAnswer" field: 必须100%使用${languageName}语言 (${request.language.toUpperCase()})
+4. 绝对禁止在题目和选项中使用中文
+5. 绝对禁止混合语言
+
+📖 EXPLANATION RULES (SMART BALANCE):
+1. "explanation" field: 主要使用中文，确保中国人能看得懂
+2. 解析必须详细，至少150-200个中文字符
+3. 💡 可以适当插入${languageName}单词或短语进行解释，但必须用中文说明其含义
+4. 📝 例如："动词 'avoir'（拥有）在这里表示..." 或 "短语 'il y a'（有）的用法是..."
+5. 🎯 重点：整体解析让中国学习者容易理解，适当的目标语言内容有助于学习
+6. 必须包含语法分析、词汇解释、错误选项分析
+
+🔍 LANGUAGE VERIFICATION CHECKLIST:
+✅ 题目内容 = ${languageName} (${request.language.toUpperCase()}) ONLY
+✅ 所有选项 = ${languageName} (${request.language.toUpperCase()}) ONLY  
+✅ 正确答案 = ${languageName} (${request.language.toUpperCase()}) ONLY
+✅ 详细解析 = 主要中文，可适当插入目标语言进行解释
+❌ 绝对不允许在题目和选项中混合语言
+❌ 绝对不允许在题目中使用中文
+✅ 解析中可适当使用目标语言单词配中文解释
+
+🎯 QUESTION TYPE DIVERSITY REQUIREMENTS:
+- 题目形式必须多样化，不能全部是选择题
+- 可以包含：填空题、判断题、四选一选择题、排序题等
+- 每个练习组应该包含至少2-3种不同的题型
+- 根据语言特点选择合适的题型组合
 
 Requirements:
-- Language: ${languageName}
+- Target Language: ${languageName} (${request.language.toUpperCase()})
+- Explanation Language: 主要中文，可适当插入目标语言进行解释
 - Difficulty: ${difficultyLevel}
 - Type: ${request.type}
-- Question format: Multiple choice with 4 options each
+- Question formats: 多样化题型 (填空题、判断题、选择题等)
 - Include vocabulary words and grammar points for each question
-- Provide detailed explanations for correct answers
+
+🎯 ANSWER DISTRIBUTION REQUIREMENTS:
+- 正确答案必须均匀分布在A、B、C、D四个选项中
+- 避免答案过于集中（例如：不要出现10道题答案全是A的情况）
+- 理想分布：每个选项（A/B/C/D）作为正确答案的次数应该相近
+- 例如10道题：A出现2-3次，B出现2-3次，C出现2-3次，D出现2-3次
+
+🧠 CONFUSION/DISTRACTOR STRATEGY:
+- 当用户要求特定知识点的题目时，适当添加混淆项来检测理解深度
+- 设计巧妙的干扰选项，测试用户是否对知识点有过于泛化的理解
+- 包含相似但不同的语法结构、近义词、易混淆的用法等
+- 例如：如果练习"过去时"，可以包含一些"现在完成时"的混淆选项
+- 目标：帮助用户精确掌握知识点，避免模糊理解
 
 `;
         if (userCapability) {
@@ -848,7 +1006,12 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 
 Return ONLY the JSON object, nothing else.
 
-Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be in detailed Chinese. ${request.additionalPrompt ? 'PRIORITIZE the user requirements specified above.' : ''} Return ONLY the JSON object, no additional text or formatting.`;
+🚨 FINAL CRITICAL REMINDER 🚨
+- 题目和选项：必须100%使用${languageName}语言
+- 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
+- 解析整体必须让中国学习者容易理解
+
+Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. ${request.additionalPrompt ? 'PRIORITIZE the user requirements specified above.' : ''} Return ONLY the JSON object, no additional text or formatting.`;
         return prompt;
     }
     async gatherComprehensiveUserData(request) {

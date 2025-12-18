@@ -364,6 +364,20 @@ export const adminApi = {
   },
 
   /**
+   * Get all tasks
+   */
+  getAllTasks: async (params?: { 
+    status?: string; 
+    type?: string; 
+    userId?: string; 
+    limit?: number; 
+    offset?: number 
+  }): Promise<{ success: boolean; data: { tasks: AsyncTask[]; totalCount: number } }> => {
+    const response = await api.get('/admin/tasks', { params });
+    return response.data;
+  },
+
+  /**
    * Get failed tasks
    */
   getFailedTasks: async (params?: { limit?: number; offset?: number }): Promise<{ success: boolean; data: { tasks: AsyncTask[]; totalCount: number } }> => {

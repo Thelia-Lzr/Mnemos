@@ -100,18 +100,21 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
     });
 
     // Record time spent on this question
-    if (questionStartTime) {
-      const timeSpent = Date.now() - questionStartTime.getTime();
-      setQuestionTimes(prev => ({
-        ...prev,
-        [questionId]: timeSpent
-      }));
-    }
-
-    setAnswers(prev => ({
-      ...prev,
+    const timeSpent = questionStartTime ? Date.now() - questionStartTime.getTime() : 0;
+    
+    // Update both answers and question times
+    const updatedAnswers = {
+      ...answers,
       [questionId]: answer
-    }));
+    };
+    
+    const updatedQuestionTimes = {
+      ...questionTimes,
+      [questionId]: timeSpent
+    };
+
+    setAnswers(updatedAnswers);
+    setQuestionTimes(updatedQuestionTimes);
 
     // Move to next question or complete
     if (currentQuestionIndex < practiceGroup.questions.length - 1) {
@@ -119,24 +122,22 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
       setCurrentQuestionIndex(prev => prev + 1);
       setQuestionStartTime(new Date());
     } else {
-      console.log('Last question answered, calling handleComplete');
-      // Use setTimeout to ensure state updates are completed
-      setTimeout(() => {
-        handleComplete();
-      }, 100);
+      console.log('Last question answered, calling handleComplete with updated answers');
+      // Pass the updated answers directly to handleComplete to avoid state timing issues
+      handleCompleteWithAnswers(updatedAnswers, updatedQuestionTimes);
     }
   };
 
-  const handleComplete = async () => {
+  const handleCompleteWithAnswers = async (finalAnswers: Record<string, string>, finalQuestionTimes: Record<string, number>) => {
     if (!startTime) return;
 
     const totalTime = Date.now() - startTime.getTime();
     
-    // Calculate results
+    // Calculate results using the provided answers
     const submittedAnswers = practiceGroup.questions.map(question => ({
       questionId: question.id,
-      userAnswer: answers[question.id] || '',
-      timeSpent: questionTimes[question.id] || 0,
+      userAnswer: finalAnswers[question.id] || '',
+      timeSpent: finalQuestionTimes[question.id] || 0,
       attempts: 1
     }));
 
@@ -144,7 +145,8 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
       practiceGroupId: practiceGroup.id,
       answers: submittedAnswers,
       totalTime,
-      answersCount: submittedAnswers.length
+      answersCount: submittedAnswers.length,
+      allQuestionsAnswered: submittedAnswers.every(a => a.userAnswer !== '')
     });
 
     try {
@@ -164,6 +166,11 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       alert(`提交练习结果时出现错误：${errorMessage}。请重试。`);
     }
+  };
+
+  const handleComplete = async () => {
+    // Use current state values
+    handleCompleteWithAnswers(answers, questionTimes);
   };
 
   const handleExit = () => {

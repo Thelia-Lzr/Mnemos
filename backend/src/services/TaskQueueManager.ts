@@ -247,48 +247,82 @@ export class TaskQueueManager {
   // 公共方法：创建任�?
   public async createTask(task: AITask): Promise<string> {
     const taskId = task.id || uuidv4();
-    const queue = this.queues.get(task.type);
     
-    if (!queue) {
-      throw new Error(`Queue for task type ${task.type} not found`);
+    try {
+      const queue = this.queues.get(task.type);
+      
+      if (!queue) {
+        // Fallback to memory-only mode if queue is not available
+        console.warn(`Queue for task type ${task.type} not found, using memory-only mode`);
+        return this.createTaskInMemory(task, taskId);
+      }
+
+      // 设置任务选项
+      const jobOptions: JobOptions = {
+        priority: this.convertPriorityToNumber(task.priority),
+        delay: task.scheduledAt ? task.scheduledAt.getTime() - Date.now() : 0,
+        attempts: task.maxRetries,
+        timeout: task.timeout,
+        removeOnComplete: 100,
+        removeOnFail: 50
+      };
+
+      const jobData: TaskJobData = {
+        taskId,
+        userId: task.userId,
+        type: task.type,
+        model: task.model,
+        prompt: task.prompt,
+        context: task.context,
+        maxRetries: task.maxRetries,
+        timeout: task.timeout,
+        notifyUser: task.notifyUser
+      };
+
+      // 添加任务到队列
+      const job = await queue.add(jobData, jobOptions);
+
+      // 初始化任务状态
+      const initialStatus: TaskStatus = {
+        taskId,
+        userId: task.userId,
+        type: task.type,
+        priority: task.priority,
+        status: TaskExecutionStatus.QUEUED,
+        progress: 0,
+        retryCount: 0,
+        createdAt: task.createdAt || new Date()
+      };
+
+      await this.updateTaskStatus(taskId, initialStatus);
+
+      console.log(`📋 Created task ${taskId} of type ${task.type} for user ${task.userId}`);
+      
+      return taskId;
+    } catch (error) {
+      // Fallback to memory-only mode if queue operations fail
+      console.warn(`Queue operation failed for task ${taskId}, using memory-only mode:`, error);
+      return this.createTaskInMemory(task, taskId);
     }
+  }
 
-    // 设置任务选项
-    const jobOptions: JobOptions = {
-      priority: this.convertPriorityToNumber(task.priority),
-      delay: task.scheduledAt ? task.scheduledAt.getTime() - Date.now() : 0,
-      attempts: task.maxRetries,
-      timeout: task.timeout,
-      removeOnComplete: 100,
-      removeOnFail: 50
-    };
-
-    const jobData: TaskJobData = {
+  // Fallback method for creating tasks in memory when Redis/Bull is not available
+  private createTaskInMemory(task: AITask, taskId: string): string {
+    // 初始化任务状态
+    const initialStatus: TaskStatus = {
       taskId,
       userId: task.userId,
       type: task.type,
-      model: task.model,
-      prompt: task.prompt,
-      context: task.context,
-      maxRetries: task.maxRetries,
-      timeout: task.timeout,
-      notifyUser: task.notifyUser
-    };
-
-    // 添加任务到队�?
-    const job = await queue.add(jobData, jobOptions);
-
-    // 初始化任务状�?
-    const initialStatus: TaskStatus = {
-      taskId,
+      priority: task.priority,
       status: TaskExecutionStatus.QUEUED,
       progress: 0,
-      retryCount: 0
+      retryCount: 0,
+      createdAt: task.createdAt || new Date()
     };
 
-    await this.updateTaskStatus(taskId, initialStatus);
+    this.taskStatuses.set(taskId, initialStatus);
 
-    console.log(`📋 Created task ${taskId} of type ${task.type} for user ${task.userId}`);
+    console.log(`📋 Created task ${taskId} of type ${task.type} for user ${task.userId} (memory-only mode)`);
     
     return taskId;
   }
@@ -483,6 +517,69 @@ export class TaskQueueManager {
     );
   }
 
+  // 获取所有任务（管理员功能）
+  public async getAllTasks(): Promise<TaskStatus[]> {
+    const allTasks: TaskStatus[] = [];
+    
+    // 从内存缓存获取所有任务状态
+    for (const [taskId, status] of this.taskStatuses) {
+      allTasks.push(status);
+    }
+    
+    // 如果内存中没有任务，尝试从队列中获取
+    if (allTasks.length === 0) {
+      for (const [taskType, queue] of this.queues) {
+        const jobs = await queue.getJobs(['waiting', 'active', 'completed', 'failed']);
+        
+        for (const job of jobs) {
+          const status = await this.getTaskStatus(job.data.taskId);
+          if (status) {
+            allTasks.push(status);
+          }
+        }
+      }
+    }
+    
+    return allTasks.sort((a, b) => 
+      new Date(b.startedAt || b.createdAt || 0).getTime() - new Date(a.startedAt || a.createdAt || 0).getTime()
+    );
+  }
+
+  // 删除任务（管理员功能）
+  public async deleteTask(taskId: string): Promise<boolean> {
+    try {
+      // 从内存中删除
+      this.taskStatuses.delete(taskId);
+      this.taskResults.delete(taskId);
+      
+      // 从Redis中删除
+      try {
+        await RedisService.del(`task:status:${taskId}`);
+        await RedisService.del(`task:result:${taskId}`);
+      } catch (error) {
+        console.error('Error deleting task from Redis:', error);
+      }
+      
+      // 从队列中删除
+      for (const [taskType, queue] of this.queues) {
+        const jobs = await queue.getJobs(['waiting', 'active', 'completed', 'failed', 'delayed']);
+        
+        for (const job of jobs) {
+          if (job.data.taskId === taskId) {
+            await job.remove();
+            console.log(`🗑️ Deleted task ${taskId} from queue ${taskType}`);
+            return true;
+          }
+        }
+      }
+      
+      return true; // 即使在队列中没找到，也认为删除成功（可能已经过期）
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      return false;
+    }
+  }
+
   // 私有辅助方法
   private convertPriorityToNumber(priority: TaskPriority): number {
     // Bull使用数字优先级，数字越大优先级越�?
@@ -519,16 +616,24 @@ export class TaskQueueManager {
     const now = Date.now();
     const expiredThreshold = 24 * 60 * 60 * 1000; // 24小时
 
-    // 清理内存中的过期任务状�?
+    // 清理内存中的过期任务状态
     for (const [taskId, status] of this.taskStatuses) {
-      if (status.completedAt && (now - status.completedAt.getTime()) > expiredThreshold) {
-        this.taskStatuses.delete(taskId);
+      if (status.completedAt) {
+        const completedTime = status.completedAt instanceof Date 
+          ? status.completedAt.getTime() 
+          : new Date(status.completedAt).getTime();
+        if ((now - completedTime) > expiredThreshold) {
+          this.taskStatuses.delete(taskId);
+        }
       }
     }
 
     // 清理内存中的过期任务结果
     for (const [taskId, result] of this.taskResults) {
-      if ((now - result.completedAt.getTime()) > expiredThreshold) {
+      const completedTime = result.completedAt instanceof Date 
+        ? result.completedAt.getTime() 
+        : new Date(result.completedAt).getTime();
+      if ((now - completedTime) > expiredThreshold) {
         this.taskResults.delete(taskId);
       }
     }
@@ -548,12 +653,19 @@ export class TaskQueueManager {
 
   // Manually complete a task (for fallback when queue is not available)
   public async completeTask(taskId: string, result: any): Promise<void> {
+    // Get existing task status to preserve original information
+    const existingStatus = this.taskStatuses.get(taskId);
+    
     const taskStatus: TaskStatus = {
       taskId,
+      userId: existingStatus?.userId,
+      type: existingStatus?.type,
+      priority: existingStatus?.priority,
       status: TaskExecutionStatus.COMPLETED,
       progress: 100,
-      retryCount: 0,
-      startedAt: new Date(),
+      retryCount: existingStatus?.retryCount || 0,
+      createdAt: existingStatus?.createdAt,
+      startedAt: existingStatus?.startedAt || new Date(),
       completedAt: new Date()
     };
     
@@ -561,9 +673,9 @@ export class TaskQueueManager {
       taskId,
       success: true,
       result,
-      executionTime: 0,
+      executionTime: existingStatus?.startedAt ? Date.now() - new Date(existingStatus.startedAt).getTime() : 0,
       tokensUsed: 0,
-      retryCount: 0,
+      retryCount: existingStatus?.retryCount || 0,
       cached: false,
       completedAt: new Date()
     };
@@ -574,13 +686,26 @@ export class TaskQueueManager {
 
   // Manually fail a task (for fallback when queue is not available)
   public async failTask(taskId: string, error: Error): Promise<void> {
+    // Get existing task status to preserve original information
+    const existingStatus = this.taskStatuses.get(taskId);
+    
     const taskStatus: TaskStatus = {
       taskId,
+      userId: existingStatus?.userId,
+      type: existingStatus?.type,
+      priority: existingStatus?.priority,
       status: TaskExecutionStatus.FAILED,
       progress: 0,
-      retryCount: 0,
-      startedAt: new Date(),
-      completedAt: new Date()
+      retryCount: existingStatus?.retryCount || 0,
+      createdAt: existingStatus?.createdAt,
+      startedAt: existingStatus?.startedAt || new Date(),
+      completedAt: new Date(),
+      error: {
+        message: error.message,
+        code: 'GENERATION_ERROR',
+        details: error.stack,
+        retryable: false
+      }
     };
     
     const taskResult: TaskResult = {
@@ -592,15 +717,31 @@ export class TaskQueueManager {
         details: error.stack,
         retryable: false
       },
-      executionTime: 0,
+      executionTime: existingStatus?.startedAt ? Date.now() - new Date(existingStatus.startedAt).getTime() : 0,
       tokensUsed: 0,
-      retryCount: 0,
+      retryCount: existingStatus?.retryCount || 0,
       cached: false,
       completedAt: new Date()
     };
     
     this.taskStatuses.set(taskId, taskStatus);
     this.taskResults.set(taskId, taskResult);
+  }
+
+  // Update task status to processing
+  public async startTask(taskId: string): Promise<void> {
+    const existingStatus = this.taskStatuses.get(taskId);
+    
+    if (existingStatus) {
+      const updatedStatus: TaskStatus = {
+        ...existingStatus,
+        status: TaskExecutionStatus.PROCESSING,
+        progress: 10,
+        startedAt: new Date()
+      };
+      
+      this.taskStatuses.set(taskId, updatedStatus);
+    }
   }
 }
 
