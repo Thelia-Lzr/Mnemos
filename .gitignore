@@ -35,6 +35,18 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# Application logs
+backend/logs/
+frontend/logs/
+*/logs/
+**/*.log
+**/*-debug.log
+**/*-error.log
+combined.log
+error.log
+access.log
+app.log
+
 # Runtime data
 pids
 *.pid
@@ -130,11 +142,6 @@ uploads/
 # Redis dump
 dump.rdb
 
-# Log files
-backend/logs/
-frontend/logs/
-*.log
-
 # Test environment files
 backend/.env.test
 frontend/.env.test
@@ -167,4 +174,3 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
-backend/.env
