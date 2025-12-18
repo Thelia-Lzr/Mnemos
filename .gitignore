@@ -9,10 +9,23 @@ dist/
 */dist/
 
 # Environment files
+.env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Backend environment files
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Frontend environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 
 # Logs
 logs/
@@ -116,3 +129,42 @@ uploads/
 
 # Redis dump
 dump.rdb
+
+# Log files
+backend/logs/
+frontend/logs/
+*.log
+
+# Test environment files
+backend/.env.test
+frontend/.env.test
+
+# IDE and editor files
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries
+.idea/shelf
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+backend/.env
