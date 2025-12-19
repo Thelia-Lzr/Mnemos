@@ -17,9 +17,9 @@ const createAdminUser = async () => {
 
   try {
     // Admin user details
-    const adminEmail = 'teddyyzr@foxmail.com';
-    const adminPassword = 'Teddy&Terri123';
-    const adminUsername = 'admin_teddy';
+    const adminEmail = 'thelia@example.com';
+    const adminPassword = 'TheliaThelia123';
+    const adminUsername = 'Thelia';
 
     // Check if admin user already exists
     const existingUser = await pool.query(
