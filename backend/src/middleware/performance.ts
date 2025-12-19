@@ -111,16 +111,14 @@ export const memoryMonitor = () => {
 
   logger.info('Memory Usage:', {
     rss: formatBytes(usage.rss),
-    heapTotal: formatBytes(usage.heapTotal),
-    heapUsed: formatBytes(usage.heapUsed),
     external: formatBytes(usage.external),
     arrayBuffers: formatBytes(usage.arrayBuffers)
   });
 
-  // Alert if memory usage is high
-  const heapUsedMB = usage.heapUsed / 1024 / 1024;
-  if (heapUsedMB > 500) { // Alert if heap usage > 500MB
-    logger.warn(`High memory usage detected: ${formatBytes(usage.heapUsed)}`);
+  // Alert if RSS is high (overall process memory)
+  const rssMB = usage.rss / 1024 / 1024;
+  if (rssMB > 800) { // Alert if RSS > ~800MB
+    logger.warn(`High memory usage detected (RSS): ${formatBytes(usage.rss)}`);
   }
 };
 
@@ -146,9 +144,8 @@ export const getHealthMetrics = () => {
     uptime: process.uptime(),
     memory: {
       rss: Math.round(memUsage.rss / 1024 / 1024),
-      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-      external: Math.round(memUsage.external / 1024 / 1024)
+      external: Math.round(memUsage.external / 1024 / 1024),
+      arrayBuffers: Math.round(memUsage.arrayBuffers / 1024 / 1024)
     },
     cpu: {
       user: Math.round(cpuUsage.user / 1000),

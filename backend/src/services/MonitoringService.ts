@@ -220,29 +220,27 @@ export class MonitoringService {
   // Check memory health
   private static checkMemoryHealth(): ServiceStatus {
     const memUsage = process.memoryUsage();
-    const usedMB = memUsage.heapUsed / 1024 / 1024;
-    const totalMB = memUsage.heapTotal / 1024 / 1024;
-    const percentage = (usedMB / totalMB) * 100;
+    const rssMB = memUsage.rss / 1024 / 1024; // process resident set
 
-    if (percentage > 90) {
+    if (rssMB > 1200) {
       return {
         status: 'critical',
-        message: `Critical memory usage: ${percentage.toFixed(1)}%`,
+        message: `Critical memory usage (RSS): ${rssMB.toFixed(1)} MB`,
         lastCheck: new Date().toISOString()
       };
     }
 
-    if (percentage > this.alertThresholds.memoryUsage) {
+    if (rssMB > 900) {
       return {
         status: 'degraded',
-        message: `High memory usage: ${percentage.toFixed(1)}%`,
+        message: `High memory usage (RSS): ${rssMB.toFixed(1)} MB`,
         lastCheck: new Date().toISOString()
       };
     }
 
     return {
       status: 'healthy',
-      message: `Memory usage: ${percentage.toFixed(1)}%`,
+      message: `Memory usage (RSS): ${rssMB.toFixed(1)} MB`,
       lastCheck: new Date().toISOString()
     };
   }
@@ -313,13 +311,13 @@ export class MonitoringService {
 
   // Check for alerts based on health status
   private static async checkAlerts(health: SystemHealth): Promise<void> {
-    // Memory alerts
+    // Memory alerts (using RSS MB)
     if (health.metrics.memoryUsage > this.alertThresholds.memoryUsage) {
       await this.createAlert(
-        health.metrics.memoryUsage > 90 ? 'error' : 'warning',
+        health.metrics.memoryUsage > 1200 ? 'error' : 'warning',
         'memory',
-        `High memory usage: ${health.metrics.memoryUsage.toFixed(1)}%`,
-        { usage: health.metrics.memoryUsage }
+        `High memory usage (RSS): ${health.metrics.memoryUsage.toFixed(1)} MB`,
+        { usageMB: health.metrics.memoryUsage }
       );
     }
 
