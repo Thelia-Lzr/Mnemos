@@ -139,7 +139,22 @@ const PracticePage: React.FC = () => {
           if (statusLower === 'completed' && status.result) {
             // Task completed, add to practice groups
             console.log('Task completed, adding practice group:', status.result);
-            setPracticeGroups(prev => [status.result!, ...prev]);
+            
+            // Ensure data format is correct
+            const practiceGroup = status.result;
+            const processedGroup = {
+              ...practiceGroup,
+              // Ensure createdAt is a string for date formatting
+              createdAt: typeof practiceGroup.createdAt === 'string' 
+                ? practiceGroup.createdAt 
+                : new Date(practiceGroup.createdAt).toISOString(),
+              // Ensure questions is an array
+              questions: Array.isArray(practiceGroup.questions) ? practiceGroup.questions : [],
+              // Ensure focusAreas is an array
+              focusAreas: Array.isArray(practiceGroup.focusAreas) ? practiceGroup.focusAreas : []
+            };
+            
+            setPracticeGroups(prev => [processedGroup, ...prev]);
             updatedGenerating.delete(taskId);
             hasChanges = true;
             ErrorHandler.showSuccess(`练习"${practiceInfo.title}"生成完成！`);
@@ -325,14 +340,40 @@ const PracticePage: React.FC = () => {
     return languageMap[language] || language;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (dateInput: any) => {
+    try {
+      // Handle null/undefined
+      if (!dateInput) {
+        return '未知日期';
+      }
+      
+      // Handle string and Date objects
+      let date: Date;
+      if (typeof dateInput === 'string') {
+        date = new Date(dateInput);
+      } else if (dateInput instanceof Date) {
+        date = dateInput;
+      } else {
+        // Try to construct date from object
+        date = new Date(dateInput);
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return '无效日期';
+      }
+      
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      console.error('Date formatting error:', dateInput, e);
+      return '日期格式错误';
+    }
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -513,11 +554,11 @@ const PracticePage: React.FC = () => {
                       {group.estimatedDuration} 分钟
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      • {group.questions.length} 题
+                      • {group.questions?.length || 0} 题
                     </Typography>
                   </Stack>
 
-                  {group.focusAreas.length > 0 && (
+                  {group.focusAreas && group.focusAreas.length > 0 && (
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="caption" color="text.secondary" display="block">
                         重点领域:

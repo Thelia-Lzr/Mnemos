@@ -75,8 +75,10 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
   const [result, setResult] = useState<PracticeResult | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
 
-  const currentQuestion = practiceGroup.questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / practiceGroup.questions.length) * 100;
+  // Safety check for questions array
+  const questions = practiceGroup.questions || [];
+  const currentQuestion = questions[currentQuestionIndex];
+  const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
   useEffect(() => {
     if (isStarted && !questionStartTime) {
@@ -95,8 +97,8 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
       questionId,
       answer,
       currentQuestionIndex,
-      totalQuestions: practiceGroup.questions.length,
-      isLastQuestion: currentQuestionIndex >= practiceGroup.questions.length - 1
+      totalQuestions: questions.length,
+      isLastQuestion: currentQuestionIndex >= questions.length - 1
     });
 
     // Record time spent on this question
@@ -117,7 +119,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
     setQuestionTimes(updatedQuestionTimes);
 
     // Move to next question or complete
-    if (currentQuestionIndex < practiceGroup.questions.length - 1) {
+    if (currentQuestionIndex < questions.length - 1) {
       console.log('Moving to next question');
       setCurrentQuestionIndex(prev => prev + 1);
       setQuestionStartTime(new Date());
@@ -134,7 +136,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
     const totalTime = Date.now() - startTime.getTime();
     
     // Calculate results using the provided answers
-    const submittedAnswers = practiceGroup.questions.map(question => ({
+    const submittedAnswers = questions.map(question => ({
       questionId: question.id,
       userAnswer: finalAnswers[question.id] || '',
       timeSpent: finalQuestionTimes[question.id] || 0,
@@ -226,7 +228,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
           )}
 
           <Alert severity="info" sx={{ mb: 3 }}>
-            本练习包含 {practiceGroup.questions.length} 道题目。请在安静的环境中完成，确保有足够的时间。
+            本练习包含 {questions.length} 道题目。请在安静的环境中完成，确保有足够的时间。
           </Alert>
 
           <Stack direction="row" spacing={2}>
@@ -280,7 +282,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
-              题目 {currentQuestionIndex + 1} / {practiceGroup.questions.length}
+              题目 {currentQuestionIndex + 1} / {questions.length}
             </Typography>
             <Button
               variant="outlined"
@@ -307,7 +309,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
       <QuestionCard
         question={currentQuestion}
         questionNumber={currentQuestionIndex + 1}
-        totalQuestions={practiceGroup.questions.length}
+        totalQuestions={questions.length}
         onAnswer={handleAnswer}
         selectedAnswer={answers[currentQuestion.id]}
       />

@@ -669,10 +669,19 @@ export class TaskQueueManager {
       completedAt: new Date()
     };
     
+    // Ensure result.createdAt is properly formatted as ISO string if it's a Date object
+    let processedResult = result;
+    if (result && typeof result === 'object' && result.createdAt instanceof Date) {
+      processedResult = {
+        ...result,
+        createdAt: result.createdAt.toISOString()
+      };
+    }
+    
     const taskResult: TaskResult = {
       taskId,
       success: true,
-      result,
+      result: processedResult,
       executionTime: existingStatus?.startedAt ? Date.now() - new Date(existingStatus.startedAt).getTime() : 0,
       tokensUsed: 0,
       retryCount: existingStatus?.retryCount || 0,

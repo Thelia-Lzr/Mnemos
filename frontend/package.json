@@ -41,11 +41,11 @@
     "jest": "^27.5.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test --watchAll=false",
-    "test:watch": "react-scripts test",
-    "eject": "react-scripts eject",
+    "start": "node --max-old-space-size=1024 node_modules/react-scripts/bin/react-scripts.js start",
+    "build": "node --max-old-space-size=1024 node_modules/react-scripts/bin/react-scripts.js build",
+    "test": "node --max-old-space-size=1024 node_modules/react-scripts/bin/react-scripts.js test --watchAll=false",
+    "test:watch": "node --max-old-space-size=1024 node_modules/react-scripts/bin/react-scripts.js test",
+    "eject": "node --max-old-space-size=1024 node_modules/react-scripts/bin/react-scripts.js eject",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix"
   },

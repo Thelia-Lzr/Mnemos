@@ -4,9 +4,9 @@
   "description": "Backend API for AI Language Learning Application",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node dist/server.js",
-    "dev": "nodemon src/server.ts",
-    "build": "tsc",
+    "start": "node --max-old-space-size=1024 dist/server.js",
+    "dev": "node --max-old-space-size=1024 node_modules/nodemon/bin/nodemon.js src/server.ts",
+    "build": "node --max-old-space-size=1024 node_modules/typescript/bin/tsc",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:unit": "jest --testPathPattern=\"src/test/unit\"",

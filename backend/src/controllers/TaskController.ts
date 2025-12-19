@@ -87,6 +87,14 @@ export class TaskController {
       if (taskStatus.status === 'completed') {
         const taskResult = await this.asyncTaskManager.getTaskResult(taskId);
         result = taskResult?.result;
+        
+        // Ensure createdAt is properly formatted as ISO string if it's a Date object
+        if (result && typeof result === 'object' && result.createdAt instanceof Date) {
+          result = {
+            ...result,
+            createdAt: result.createdAt.toISOString()
+          };
+        }
       }
 
       // 验证任务所有权（简化实现，实际需要从任务数据中验证）
