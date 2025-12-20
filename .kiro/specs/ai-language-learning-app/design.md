@@ -485,7 +485,6 @@ interface AIModelStrategy {
     LEVEL_ASSESSMENT = "assessment",    // 水平评估
     VOCABULARY_EXTRACTION = "vocab",    // 词汇提取
     FUNCTION_CALLING = "function",      // 功能调用理解
-    INTENT_RECOGNITION = "intent"       // 意图识别
   }
 }
 
