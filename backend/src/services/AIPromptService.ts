@@ -68,6 +68,14 @@ CRITICAL LANGUAGE REQUIREMENTS:
 3. 只有在AI认为用户需要理解题目含义时，才可以在题目后用括号添加中文提示
 4. 解析（explanation）必须用中文详细说明，包含语法解释、词汇分析、语言点扩展
 
+🚨🚨🚨 CRITICAL: ANSWER ACCURACY VERIFICATION 🚨🚨🚨
+⚠️ MANDATORY VERIFICATION FOR EVERY QUESTION:
+1. ✓ VERIFY the factual correctness of your answer before marking correctAnswer field
+2. ✓ DOUBLE-CHECK that correctAnswer field (A/B/C/D) points to the option with factually correct information
+3. ✓ ENSURE your explanation clearly states why that specific answer is correct
+4. ✓ NO contradiction between correctAnswer and explanation - they MUST be consistent!
+5. ✓ If unsure about factual accuracy, generate a different question instead
+
 生成要求：
 1. 每个练习组必须包含正好10个题目
 2. 题目必须以选择题形式呈现，包含4个选项（A、B、C、D）
@@ -106,6 +114,8 @@ CRITICAL REQUIREMENTS:
 2. 只有在初学者需要理解时才在题目后添加中文提示
 3. 解析必须用中文详细说明，包含语法分析、词汇解释、语言点扩展
 4. 每个解析至少包含100字的详细说明
+5. ⚠️ 最重要：correctAnswer字段必须指向事实上正确的答案，解析必须明确说明为什么该答案正确
+6. ⚠️ 严禁答案标记与解析说明相互矛盾！
 
 请生成10个高质量选择题，确保语言使用正确且解析详细。`,
       parameters: ['language', 'userLevel', 'practiceType', 'focusVocabulary', 'focusGrammar', 'topic'],

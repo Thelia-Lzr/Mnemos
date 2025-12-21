@@ -430,12 +430,40 @@ export class PracticeGenerationService {
 5. 🎯 重点：整体解析让中国学习者容易理解，适当的目标语言内容有助于学习
 6. 必须包含语法分析、词汇解释、错误选项分析
 
+�🚨🚨 CRITICAL: ANSWER ACCURACY AND CONSISTENCY VERIFICATION 🚨🚨🚨
+⚠️ BEFORE FINALIZING EACH QUESTION, YOU MUST:
+1. ✓ VERIFY the factual correctness of your answer - if the question asks "Who invented X?", make sure you know the correct answer!
+2. ✓ DOUBLE-CHECK that the "correctAnswer" field (A/B/C/D) matches the option containing the factually correct information
+3. ✓ CROSS-VALIDATE that your explanation clearly states why the chosen answer is correct
+4. ✓ ENSURE there is NO contradiction between the correctAnswer field and what you explain in the explanation field
+5. ✓ If unsure about factual accuracy, DO NOT generate that question - create a different question instead
+
+🔍 ANSWER CONSISTENCY SELF-CHECK (MANDATORY FOR EVERY QUESTION):
+Before outputting each question, ask yourself:
+- "Is my correctAnswer field (A/B/C/D) pointing to the option that contains the factually correct information?"
+- "Does my explanation clearly support this choice as the correct answer?"
+- "Would a knowledgeable teacher agree that this is the objectively correct answer?"
+- If ANY answer is "No" or "Unsure" → REVISE the question immediately
+
+💡 EXAMPLE OF CORRECT CONSISTENCY:
+Question: "Who developed the periodic table of elements?"
+Options: ["A. Dmitri Mendeleev", "B. Marie Curie", "C. John Dalton", "D. Niels Bohr"]
+correctAnswer: "A"  ← MUST point to the factually correct answer
+explanation: "正确答案是 A. Dmitri Mendeleev（德米特里·门捷列夫）。门捷列夫在1869年创建了元素周期表..."
+
+❌ NEVER DO THIS (WRONG - Answer inconsistency):
+correctAnswer: "C"  ← Points to wrong person
+explanation: "正确答案是 C. John Dalton" ← This is factually INCORRECT!
+
 🔍 LANGUAGE VERIFICATION CHECKLIST:
 ✅ 题目内容 = ${languageName} (${request.language.toUpperCase()}) ONLY
 ✅ 所有选项 = ${languageName} (${request.language.toUpperCase()}) ONLY  
 ✅ 正确答案 = ${languageName} (${request.language.toUpperCase()}) ONLY
 ✅ 详细解析 = 中文 ONLY
+✅ correctAnswer字段必须指向事实上正确的选项
+✅ 解析必须清楚说明为什么该选项是正确答案
 ❌ 不要在题目中使用中文
+❌ 绝对不允许答案字段与解析内容矛盾
 
 Requirements:
 - Target Language: ${languageName} (${request.language.toUpperCase()})
@@ -531,6 +559,9 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ "explanation" is in detailed Chinese with at least 100 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
+- ✓ CRITICAL: "correctAnswer" field MUST point to the option with factually correct information
+- ✓ CRITICAL: "explanation" must clearly state why that specific option is the correct answer
+- ✓ CRITICAL: NO contradiction between correctAnswer and explanation - they must be consistent!
 
 Return ONLY the JSON object, nothing else.
 
@@ -538,6 +569,8 @@ Return ONLY the JSON object, nothing else.
 - 题目和选项：必须100%使用${languageName}语言
 - 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
 - 解析整体必须让中国学习者容易理解
+- ⚠️ 最重要：correctAnswer字段必须指向事实上正确的答案选项，解析必须明确说明为什么该答案正确
+- ⚠️ 严禁出现答案标记为A但解析说正确答案是C的矛盾情况！
 
 Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. Return ONLY the JSON object, no additional text or formatting.`;
 
@@ -684,6 +717,9 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ "explanation" is in detailed Chinese with at least 150 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
+- ✓ CRITICAL: "correctAnswer" field MUST point to the option with factually correct information
+- ✓ CRITICAL: "explanation" must clearly state why that specific option is the correct answer
+- ✓ CRITICAL: NO contradiction between correctAnswer and explanation - they must be consistent!
 
 Return ONLY the JSON object, nothing else.
 
@@ -691,6 +727,8 @@ Return ONLY the JSON object, nothing else.
 - 题目和选项：必须100%使用${languageName}语言
 - 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
 - 解析整体必须让中国学习者容易理解
+- ⚠️ 最重要：correctAnswer字段必须指向事实上正确的答案选项，解析必须明确说明为什么该答案正确
+- ⚠️ 严禁出现答案标记为A但解析说正确答案是C的矛盾情况！
 
 Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with comprehensive analysis and appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. Return ONLY the JSON object, no additional text or formatting.`;
 
@@ -818,6 +856,9 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ "explanation" is in detailed Chinese with at least 100 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
+- ✓ CRITICAL: "correctAnswer" field MUST point to the option with factually correct vocabulary information
+- ✓ CRITICAL: "explanation" must clearly state why that specific option is the correct answer
+- ✓ CRITICAL: NO contradiction between correctAnswer and explanation - they must be consistent!
 
 Return ONLY the JSON object, nothing else.
 
@@ -825,6 +866,8 @@ Return ONLY the JSON object, nothing else.
 - 题目和选项：必须100%使用${languageName}语言
 - 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
 - 解析整体必须让中国学习者容易理解
+- ⚠️ 最重要：correctAnswer字段必须指向事实上正确的答案选项，解析必须明确说明为什么该答案正确
+- ⚠️ 严禁出现答案标记为A但解析说正确答案是C的矛盾情况！
 
 Ensure exactly 10 questions are generated, focusing on the provided vocabulary words. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. Return ONLY the JSON object, no additional text or formatting.`;
 
@@ -1119,14 +1162,32 @@ Ensure exactly 10 questions are generated, focusing on the provided vocabulary w
 5. 🎯 重点：整体解析让中国学习者容易理解，适当的目标语言内容有助于学习
 6. 必须包含语法分析、词汇解释、错误选项分析
 
+�🚨🚨 CRITICAL: ANSWER ACCURACY AND CONSISTENCY VERIFICATION 🚨🚨🚨
+⚠️ BEFORE FINALIZING EACH QUESTION, YOU MUST:
+1. ✓ VERIFY the factual correctness of your answer - ensure you know the right answer with certainty
+2. ✓ DOUBLE-CHECK that the "correctAnswer" field (A/B/C/D) matches the option containing the factually correct information
+3. ✓ CROSS-VALIDATE that your explanation clearly states why the chosen answer is correct
+4. ✓ ENSURE there is NO contradiction between the correctAnswer field and what you explain in the explanation field
+5. ✓ If unsure about factual accuracy, DO NOT generate that question - create a different question instead
+
+🔍 ANSWER CONSISTENCY SELF-CHECK (MANDATORY FOR EVERY QUESTION):
+Before outputting each question, verify:
+- "Is my correctAnswer field pointing to the factually correct option?"
+- "Does my explanation support this choice as the correct answer?"
+- "Are there any contradictions between my answer marking and my explanation?"
+- If ANY concern exists → REVISE immediately before generating the question
+
 🔍 LANGUAGE VERIFICATION CHECKLIST:
 ✅ 题目内容 = ${languageName} (${request.language.toUpperCase()}) ONLY
 ✅ 所有选项 = ${languageName} (${request.language.toUpperCase()}) ONLY  
 ✅ 正确答案 = ${languageName} (${request.language.toUpperCase()}) ONLY
 ✅ 详细解析 = 主要中文，可适当插入目标语言进行解释
+✅ correctAnswer字段必须指向事实上正确的选项
+✅ 解析必须清楚说明为什么该选项是正确答案
 ❌ 绝对不允许在题目和选项中混合语言
 ❌ 绝对不允许在题目中使用中文
 ✅ 解析中可适当使用目标语言单词配中文解释
+❌ 绝对不允许答案字段与解析内容矛盾
 
 🎯 QUESTION TYPE DIVERSITY REQUIREMENTS:
 - 题目形式必须多样化，不能全部是选择题
@@ -1241,6 +1302,9 @@ STRICT VALIDATION CHECKLIST - MUST PASS ALL:
 - ✓ "explanation" is in detailed Chinese with at least 100 characters
 - ✓ NO markdown formatting anywhere
 - ✓ NO object format for options
+- ✓ CRITICAL: "correctAnswer" field MUST point to the option with factually correct information
+- ✓ CRITICAL: "explanation" must clearly state why that specific option is the correct answer
+- ✓ CRITICAL: NO contradiction between correctAnswer and explanation - they must be consistent!
 
 Return ONLY the JSON object, nothing else.
 
@@ -1248,6 +1312,8 @@ Return ONLY the JSON object, nothing else.
 - 题目和选项：必须100%使用${languageName}语言
 - 解析说明：主要使用中文，可适当插入${languageName}单词或短语配中文解释
 - 解析整体必须让中国学习者容易理解
+- ⚠️ 最重要：correctAnswer字段必须指向事实上正确的答案选项，解析必须明确说明为什么该答案正确
+- ⚠️ 严禁出现答案标记为A但解析说正确答案是C的矛盾情况！
 
 Ensure exactly 10 questions are generated. Questions and options MUST be in ${languageName}. All explanations MUST be primarily in Chinese with appropriate ${languageName} terms explained in Chinese. IMPORTANT: Distribute correct answers evenly across A, B, C, D options. ${request.additionalPrompt ? 'PRIORITIZE the user requirements specified above.' : ''} Return ONLY the JSON object, no additional text or formatting.`;
 
