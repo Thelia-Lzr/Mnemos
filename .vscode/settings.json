@@ -23,18 +23,10 @@
   },
 
   // ==================== ESLint 设置 ====================
-  "eslint.validate": [
-    "typescript",
-    "typescriptreact",
-    "javascript",
-    "javascriptreact"
-  ],
+  "eslint.validate": ["typescript", "typescriptreact", "javascript", "javascriptreact"],
   "eslint.format.enable": true,
   "eslint.lintTask.enable": true,
-  "eslint.workingDirectories": [
-    "backend",
-    "frontend"
-  ],
+  "eslint.workingDirectories": ["backend", "frontend"],
 
   // ==================== Prettier 设置 ====================
   "prettier.printWidth": 100,
@@ -127,10 +119,7 @@
   },
 
   // ==================== 错误 Lens 设置 ====================
-  "errorLens.enabledDiagnosticLevels": [
-    "warning",
-    "error"
-  ],
+  "errorLens.enabledDiagnosticLevels": ["warning", "error"],
   "errorLens.messageTemplate": "$message ($code)",
 
   // ==================== 代码片段 ====================
@@ -206,5 +195,7 @@
   "workbench.startupEditor": "welcomePage",
   "workbench.editor.enablePreview": true,
   "workbench.editor.enablePreviewFromQuickOpen": true,
-  "explorer.openEditors.visible": 5
+  "explorer.openEditors.visible": 5,
+  "containers.containers.label": "name",
+  "containers.images.label": "name"
 }

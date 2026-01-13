@@ -46,16 +46,16 @@ help:
 ## install: 安装所有依赖
 install:
 	@echo "$(BLUE)正在安装后端依赖...$(NC)"
-	cd backend && npm install
+	export PATH=/usr/local/nodejs/bin:$$PATH && cd backend && npm install
 	@echo "$(GREEN)✓ 后端依赖安装完成$(NC)"
 	@echo "$(BLUE)正在安装前端依赖...$(NC)"
-	cd frontend && npm install
+	export PATH=/usr/local/nodejs/bin:$$PATH && cd frontend && npm install
 	@echo "$(GREEN)✓ 前端依赖安装完成$(NC)"
 
 ## init: 添加测试用户
 init:
 	@echo "$(BLUE)添加测试用户...$(NC)"
-	cd backend && npx ts-node scripts/create-test-user.ts
+	export PATH=/usr/local/nodejs/bin:$$PATH && cd backend && npx ts-node scripts/create-test-user.ts
 	@echo "$(GREEN)✓ 测试用户添加完成$(NC)"
 
 ## setup-dev: 完整的开发环境初始化
@@ -63,7 +63,7 @@ setup-dev: install docker-up
 	@echo "$(BLUE)等待数据库启动...$(NC)"
 	@sleep 5
 	@echo "$(BLUE)运行数据库迁移...$(NC)"
-	cd backend && npm run migrate:up
+	export PATH=/usr/local/nodejs/bin:$$PATH && cd backend && npm run migrate:up
 	@echo "$(GREEN)✓ 开发环境准备完成!$(NC)"
 	@echo "$(YELLOW)运行以下命令启动开发环境:$(NC)"
 	@echo "  终端1: make dev          (后端)"
@@ -72,12 +72,12 @@ setup-dev: install docker-up
 ## dev: 启动后端开发环境
 dev:
 	@echo "$(BLUE)启动后端开发环境...$(NC)"
-	cd backend && npm run dev
+	export PATH=/usr/local/nodejs/bin:$$PATH && cd backend && npm run dev
 
 ## start: 启动已构建的应用
 start:
 	@echo "$(BLUE)启动应用...$(NC)"
-	cd backend && npm start
+	export PATH=/usr/local/nodejs/bin:$$PATH && cd backend && npm start
 
 ## build: 构建后端和前端
 build: build-backend
