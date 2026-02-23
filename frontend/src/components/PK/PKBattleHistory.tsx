@@ -1,27 +1,27 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Chip,
-  CircularProgress,
-  Alert,
-  Divider,
-} from '@mui/material';
-import { 
-  EmojiEvents, 
-  Close, 
-  Remove, 
-  AccessTime,
-  Person,
-  TrendingUp,
-  TrendingDown,
+    AccessTime,
+    Close,
+    EmojiEvents,
+    Person,
+    Remove,
+    TrendingDown,
+    TrendingUp,
 } from '@mui/icons-material';
+import {
+    Alert,
+    Box,
+    Card,
+    CardContent,
+    Chip,
+    CircularProgress,
+    Divider,
+    List,
+    ListItem,
+    ListItemIcon,
+    ListItemText,
+    Typography,
+} from '@mui/material';
+import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
 interface BattleHistoryEntry {

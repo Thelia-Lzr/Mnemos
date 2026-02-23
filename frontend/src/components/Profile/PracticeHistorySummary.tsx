@@ -1,34 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Box,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  LinearProgress,
-  Chip,
-  Stack,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Tooltip
-} from '@mui/material';
-import {
-  TrendingUp,
-  School,
-  Timer,
-  Psychology,
-  History,
-  Visibility
+    History,
+    Psychology,
+    School,
+    Timer,
+    TrendingUp,
+    Visibility
 } from '@mui/icons-material';
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Chip,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Grid,
+    IconButton,
+    List,
+    ListItem,
+    ListItemSecondaryAction,
+    ListItemText,
+    Stack,
+    Tooltip,
+    Typography
+} from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { practiceApi, PracticeHistoryItem } from '../../services/practiceApi';
 
 interface PracticeStats {

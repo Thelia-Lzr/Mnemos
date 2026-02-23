@@ -1,5 +1,4 @@
-import { createTheme, ThemeOptions } from '@mui/material/styles';
-import { alpha } from '@mui/material/styles';
+import { alpha, createTheme, ThemeOptions } from '@mui/material/styles';
 
 // Define custom color palette
 const colors = {

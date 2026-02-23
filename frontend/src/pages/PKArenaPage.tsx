@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Typography,
-  Tabs,
-  Tab,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Paper,
-  Alert,
+    Alert,
+    Box,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Paper,
+    Select,
+    Tab,
+    Tabs,
+    Typography,
 } from '@mui/material';
+import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { RootState } from '../store/store';
-import PKMatchingInterface from '../components/PK/PKMatchingInterface';
+import PKBattleHistory from '../components/PK/PKBattleHistory';
 import PKBattleInterface from '../components/PK/PKBattleInterface';
 import PKLeaderboard from '../components/PK/PKLeaderboard';
-import PKBattleHistory from '../components/PK/PKBattleHistory';
+import PKMatchingInterface from '../components/PK/PKMatchingInterface';
 import api from '../services/api';
+import { RootState } from '../store/store';
 
 const PKArenaPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);

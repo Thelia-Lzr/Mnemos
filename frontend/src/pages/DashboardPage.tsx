@@ -1,45 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Grid, 
-  Card, 
-  CardContent, 
-  CardActions,
-  Button,
-  LinearProgress,
-  Chip,
-  Avatar,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  Alert,
-  Skeleton,
-  useTheme,
-  alpha
-} from '@mui/material';
-import { 
-  TrendingUp, 
-  School, 
-  Book, 
-  SportsEsports, 
-  AccountBalanceWallet,
-  EmojiEvents,
-  Timeline,
-  Speed,
-  Star,
-  PlayArrow,
-  Visibility,
-  Assignment
+import {
+    AccountBalanceWallet,
+    Assignment,
+    Book,
+    EmojiEvents,
+    PlayArrow,
+    School,
+    Speed,
+    SportsEsports,
+    Star,
+    Timeline,
+    TrendingUp,
+    Visibility
 } from '@mui/icons-material';
-import { useSelector, useDispatch } from 'react-redux';
+import {
+    Alert,
+    alpha,
+    Avatar,
+    Box,
+    Button,
+    Card,
+    CardActions,
+    CardContent,
+    Chip,
+    Divider,
+    Grid,
+    LinearProgress,
+    List,
+    ListItem,
+    ListItemIcon,
+    ListItemText,
+    Skeleton,
+    Typography,
+    useTheme
+} from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { RootState, AppDispatch } from '../store/store';
 import DailyRecommendationCard from '../components/DailyRecommendation/DailyRecommendationCard';
 import CreditBalance from '../components/Payment/CreditBalance';
 import api from '../services/api';
+import { AppDispatch, RootState } from '../store/store';
 
 interface LearningStats {
   totalStudyTime: number;

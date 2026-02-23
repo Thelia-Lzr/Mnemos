@@ -1,53 +1,53 @@
-import React, { useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Box, 
-  AppBar, 
-  Toolbar, 
-  Typography, 
-  Drawer, 
-  List, 
-  ListItemIcon, 
-  ListItemText,
-  Breadcrumbs,
-  Link,
-  IconButton,
-  Badge,
-  Menu,
-  MenuItem,
-  Avatar,
-  Divider,
-  useTheme,
-  useMediaQuery,
-  Collapse,
-  ListItemButton,
-  Chip,
-  alpha
-} from '@mui/material';
-import { 
-  Dashboard, 
-  Chat, 
-  School, 
-  Book, 
-  SportsEsports, 
-  Person, 
-  Payment, 
-  AdminPanelSettings,
-  Menu as MenuIcon,
-  Notifications,
-  AccountCircle,
-  Logout,
-  Settings,
-  NavigateNext,
-  Home,
-  ExpandLess,
-  ExpandMore,
-  Assignment,
-  TrendingUp
+import {
+    AccountCircle,
+    AdminPanelSettings,
+    Assignment,
+    Book,
+    Chat,
+    Dashboard,
+    ExpandLess,
+    ExpandMore,
+    Home,
+    Logout,
+    Menu as MenuIcon,
+    NavigateNext,
+    Notifications,
+    Payment,
+    Person,
+    School,
+    Settings,
+    SportsEsports,
+    TrendingUp
 } from '@mui/icons-material';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState, AppDispatch } from '../../store/store';
+import {
+    AppBar,
+    Avatar,
+    Badge,
+    Box,
+    Breadcrumbs,
+    Chip,
+    Collapse,
+    Divider,
+    Drawer,
+    IconButton,
+    Link,
+    List,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Menu,
+    MenuItem,
+    Toolbar,
+    Typography,
+    alpha,
+    useMediaQuery,
+    useTheme
+} from '@mui/material';
+import React, { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { logout } from '../../store/slices/authSlice';
+import { AppDispatch, RootState } from '../../store/store';
 
 const drawerWidth = 260;
 

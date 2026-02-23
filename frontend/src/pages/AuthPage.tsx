@@ -1,30 +1,28 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Tab,
-  Tabs,
-  Alert,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormHelperText,
-  useTheme,
-  useMediaQuery
+    Alert,
+    Box,
+    FormControl,
+    FormHelperText,
+    InputLabel,
+    MenuItem,
+    Paper,
+    Select,
+    Tab,
+    Tabs,
+    TextField,
+    Typography,
+    useMediaQuery,
+    useTheme
 } from '@mui/material';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { RootState } from '../store/store';
-import { loginStart, loginSuccess, loginFailure, clearError } from '../store/slices/authSlice';
-import api from '../services/api';
 import PasswordStrengthIndicator from '../components/Auth/PasswordStrengthIndicator';
 import LoadingButton from '../components/common/LoadingButton';
-import { validateLoginForm, validateRegisterForm, LoginFormData, RegisterFormData } from '../utils/validation';
+import api from '../services/api';
+import { clearError, loginFailure, loginStart, loginSuccess } from '../store/slices/authSlice';
+import { RootState } from '../store/store';
+import { LoginFormData, RegisterFormData, validateLoginForm, validateRegisterForm } from '../utils/validation';
 
 interface TabPanelProps {
   children?: React.ReactNode;

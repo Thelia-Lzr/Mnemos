@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState, AppDispatch } from '../../store/store';
+import { RecommendationType } from '../../services/dailyRecommendationApi';
 import {
-  getTodaysRecommendation,
-  generateRecommendation,
-  generateRecommendationAsync,
-  submitFeedback,
-  clearError,
-  markAsViewed
+    clearError,
+    generateRecommendationAsync,
+    getTodaysRecommendation,
+    markAsViewed,
+    submitFeedback
 } from '../../store/slices/dailyRecommendationSlice';
-import { DailyLearningRecommendation, LearningRecommendation, RecommendationType } from '../../services/dailyRecommendationApi';
-import RecommendationItem from './RecommendationItem';
-import QuickPracticeOptions from './QuickPracticeOptions';
+import { AppDispatch, RootState } from '../../store/store';
 import FeedbackModal from './FeedbackModal';
+import QuickPracticeOptions from './QuickPracticeOptions';
+import RecommendationItem from './RecommendationItem';
 
 interface DailyRecommendationCardProps {
   language: string;

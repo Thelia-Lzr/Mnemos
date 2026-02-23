@@ -1,5 +1,5 @@
-import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import paymentApi, { RechargePackage, PaymentOrder, PaymentResult, TransactionHistory } from '../../services/paymentApi';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import paymentApi, { PaymentOrder, RechargePackage, TransactionHistory } from '../../services/paymentApi';
 
 interface PaymentState {
   packages: RechargePackage[];
