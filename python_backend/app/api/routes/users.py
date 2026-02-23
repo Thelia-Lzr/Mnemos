@@ -21,36 +21,37 @@ from app.schemas.user import (
     UserLearningLanguageUpdate,
     UserLearningLanguageResponse,
 )
-from app.models.user import User, UserPreferences, UserCapability, UserLearningLanguage, UserCredit
+from app.models.user import User, UserPreferences, UserCapability, UserLearningLanguage
+from app.models.payment import UserCredit
 from app.core.database import AsyncSession
 
 router = APIRouter(prefix="/api/users", tags=["用户"])
 
 
-@router.get("/profile", response_model=UserProfileResponse)
-async def get_profile(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> UserProfileResponse:
-    """获取用户完整资料"""
-    # 获取积分
-    credits_result = await db.execute(
-        select(UserCredit).where(UserCredit.user_id == current_user.id)
-    )
-    credits = credits_result.scalar_one_or_none()
-
-    return UserProfileResponse(
-        id=str(current_user.id),
-        username=current_user.username,
-        email=current_user.email,
-        role=current_user.role,
-        created_at=current_user.created_at,
-        last_login_at=current_user.last_login_at,
-        preferences=None,  # 需要时加载
-        capabilities=[],  # 需要时加载
-        learning_languages=[],  # 需要时加载
-        credits=credits.balance if credits else 0,
-    )
+# @router.get("/profile", response_model="UserProfileResponse")
+# async def get_profile(
+#     current_user: User = Depends(get_current_user),
+#     db: AsyncSession = Depends(get_db),
+# ) -> UserProfileResponse:
+#     """获取用户完整资料"""
+#     # 获取积分
+#     credits_result = await db.execute(
+#         select(UserCredit).where(UserCredit.user_id == current_user.id)
+#     )
+#     credits = credits_result.scalar_one_or_none()
+#
+#     return UserProfileResponse(
+#         id=str(current_user.id),
+#         username=current_user.username,
+#         email=current_user.email,
+#         role=current_user.role,
+#         created_at=current_user.created_at,
+#         last_login_at=current_user.last_login_at,
+#         preferences=None,  # 需要时加载
+#         capabilities=[],  # 需要时加载
+#         learning_languages=[],  # 需要时加载
+#         credits=credits.balance if credits else 0,
+#     )
 
 
 @router.put("/profile", response_model=UserResponse)
@@ -104,43 +105,43 @@ async def update_profile(
     )
 
 
-@router.put("/preferences", response_model=UserPreferencesResponse)
-async def update_preferences(
-    *,
-    db: AsyncSession = Depends(get_db),
-    preferences_in: UserPreferencesUpdate,
-    current_user: User = Depends(get_current_user),
-) -> UserPreferencesResponse:
-    """更新用户偏好"""
-    # 获取或创建偏好设置
-    result = await db.execute(
-        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
-    )
-    preferences = result.scalar_one_or_none()
-
-    if not preferences:
-        preferences = UserPreferences(user_id=current_user.id)
-        db.add(preferences)
-
-    # 更新字段
-    update_data = preferences_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(preferences, field, value)
-
-    await db.commit()
-    await db.refresh(preferences)
-
-    return UserPreferencesResponse(
-        id=str(preferences.id),
-        theme=preferences.theme,
-        notifications_email=preferences.notifications_email,
-        notifications_push=preferences.notifications_push,
-        practice_reminders=preferences.practice_reminders,
-        daily_quote_enabled=preferences.daily_quote_enabled,
-        review_reminders=preferences.review_reminders,
-        milestone_updates=preferences.milestone_updates,
-        pk_invitations=preferences.pk_invitations,
-    )
+# @router.put("/preferences", response_model="UserPreferencesResponse")
+# async def update_preferences(
+#     *,
+#     db: AsyncSession = Depends(get_db),
+#     preferences_in: UserPreferencesUpdate,
+#     current_user: User = Depends(get_current_user),
+# ) -> UserPreferencesResponse:
+#     """更新用户偏好"""
+#     # 获取或创建偏好设置
+#     result = await db.execute(
+#         select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+#     )
+#     preferences = result.scalar_one_or_none()
+#
+#     if not preferences:
+#         preferences = UserPreferences(user_id=current_user.id)
+#         db.add(preferences)
+#
+#     # 更新字段
+#     update_data = preferences_in.model_dump(exclude_unset=True)
+#     for field, value in update_data.items():
+#         setattr(preferences, field, value)
+#
+#     await db.commit()
+#     await db.refresh(preferences)
+#
+#     return UserPreferencesResponse(
+#         id=str(preferences.id),
+#         theme=preferences.theme,
+#         notifications_email=preferences.notifications_email,
+#         notifications_push=preferences.notifications_push,
+#         practice_reminders=preferences.practice_reminders,
+#         daily_quote_enabled=preferences.daily_quote_enabled,
+#         review_reminders=preferences.review_reminders,
+#         milestone_updates=preferences.milestone_updates,
+#         pk_invitations=preferences.pk_invitations,
+#     )
 
 
 @router.get("/learning-status")

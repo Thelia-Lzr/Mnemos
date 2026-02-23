@@ -16,8 +16,9 @@ from app.schemas.auth import (
     RefreshTokenRequest,
     UserAuthResponse,
 )
-from app.schemas.user import UserResponse, UserProfileResponse
-from app.models.user import User, UserPreferences, UserCredit
+from app.schemas.user import UserResponse
+from app.models.user import User, UserPreferences
+from app.models.payment import UserCredit
 from app.core.security import (
     verify_password,
     get_password_hash,

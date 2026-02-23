@@ -54,11 +54,11 @@ class PaymentOrder(Base, TimestampMixin):
     # 状态
     status = Column(
         String(20),
-        default=PaymentStatus.PENDING,
         CheckConstraint(
             "status IN ('pending', 'paid', 'processing', 'completed', 'failed', 'cancelled', 'expired')",
             name="check_payment_status",
         ),
+        default=PaymentStatus.PENDING,
     )
 
     # 时间
@@ -127,16 +127,18 @@ class UserCredit(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    balance = Column(Integer, default=0)
+    current_balance = Column(Integer, default=0)
     total_earned = Column(Integer, default=0)
     total_spent = Column(Integer, default=0)
+    last_purchase_at = Column(DateTime(timezone=True), nullable=True)
+    average_monthly_spending = Column(DECIMAL(10, 2), default=0.0)
 
     # 关系
     user = relationship("User", back_populates="credits")
     transactions = relationship("CreditTransaction", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"<UserCredit(user_id={self.user_id}, balance={self.balance})>"
+        return f"<UserCredit(user_id={self.user_id}, current_balance={self.current_balance})>"
 
 
 class CreditTransaction(Base, TimestampMixin):

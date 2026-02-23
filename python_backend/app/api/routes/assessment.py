@@ -19,7 +19,7 @@ from app.schemas.assessment import (
     AssessmentHistoryEntry,
 )
 from app.models.user import User
-from app.models.assessment import UserCapability
+from app.models.user import UserCapability
 
 router = APIRouter(prefix="/api/assessment", tags=["评估"])
 

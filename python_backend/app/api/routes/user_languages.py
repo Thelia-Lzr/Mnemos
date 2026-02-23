@@ -9,7 +9,7 @@ import uuid
 
 from app.api.deps import get_db, get_current_user
 from app.models.user import User, UserLearningLanguage
-from app.models.assessment import UserCapability
+from app.models.user import UserCapability
 
 router = APIRouter(prefix="/api/user-languages", tags=["用户语言"])
 

@@ -51,9 +51,9 @@ class UserProfileResponse(BaseModel):
     role: UserRole
     created_at: datetime
     last_login_at: Optional[datetime] = None
-    preferences: Optional["UserPreferencesResponse"] = None
-    capabilities: Optional[List["UserCapabilityResponse"]] = None
-    learning_languages: Optional[List["UserLearningLanguageResponse"]] = None
+    preferences: Optional[dict] = None  # 简化：使用dict而不是UserPreferencesResponse
+    capabilities: Optional[List[dict]] = None  # 简化：使用dict而不是UserCapabilityResponse
+    learning_languages: Optional[List[dict]] = None  # 简化：使用dict而不是UserLearningLanguageResponse
     credits: Optional[int] = 0
 
     class Config:
@@ -179,3 +179,10 @@ class UserLearningStatusResponse(BaseModel):
     next_review_at: Optional[datetime] = None
     streak_days: int = 0
     total_practice_time: int = 0  # 分钟
+
+
+# 更新前向引用
+UserProfileResponse.update_forward_refs()
+UserPreferencesResponse.update_forward_refs()
+UserCapabilityResponse.update_forward_refs()
+UserLearningLanguageResponse.update_forward_refs()

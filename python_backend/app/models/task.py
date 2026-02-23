@@ -49,11 +49,11 @@ class AsyncTask(Base, TimestampMixin):
     task_type = Column(String(50), nullable=False)
     status = Column(
         String(20),
-        default=TaskStatus.PENDING,
         CheckConstraint(
             "status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'cancelled')",
             name="check_task_status",
         ),
+        default=TaskStatus.PENDING,
     )
     priority = Column(Integer, default=TaskPriority.NORMAL)
 

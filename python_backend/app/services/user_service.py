@@ -11,8 +11,8 @@ from app.models.user import (
     UserPreferences,
     UserCapability,
     UserLearningLanguage,
-    UserCredit,
 )
+from app.models.payment import UserCredit
 
 
 class UserService:

@@ -56,8 +56,8 @@ class User(Base, TimestampMixin):
     password_hash = Column(String(255), nullable=False)
     role = Column(
         String(20),
-        default=UserRole.USER,
         CheckConstraint("role IN ('user', 'admin')", name="check_role"),
+        default=UserRole.USER,
     )
     created_at = Column(DateTime(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
     last_login_at = Column(DateTime(timezone=True), nullable=True)
@@ -80,6 +80,7 @@ class User(Base, TimestampMixin):
     mmr = relationship("UserMMR", back_populates="user", cascade="all, delete-orphan")
     credits = relationship("UserCredit", back_populates="user", uselist=False, cascade="all, delete-orphan")
     payment_orders = relationship("PaymentOrder", back_populates="user", cascade="all, delete-orphan")
+    transactions = relationship("CreditTransaction", back_populates="user", cascade="all, delete-orphan")
     async_tasks = relationship("AsyncTask", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
@@ -95,8 +96,8 @@ class UserPreferences(Base, TimestampMixin):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     theme = Column(
         String(20),
-        default="light",
         CheckConstraint("theme IN ('light', 'dark')", name="check_theme"),
+        default="light",
     )
     notifications_email = Column(Boolean, default=True)
     notifications_push = Column(Boolean, default=True)
@@ -221,11 +222,11 @@ class UserLearningLanguage(Base, TimestampMixin):
     )
     difficulty_preference = Column(
         String(20),
-        default="adaptive",
         CheckConstraint(
             "difficulty_preference IN ('easy', 'adaptive', 'challenging')",
             name="check_difficulty_preference",
         ),
+        default="adaptive",
     )
 
     # 学习风格

@@ -11,6 +11,8 @@ from sqlalchemy import (
     text,
     Index,
     DECIMAL,
+    Boolean,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -68,11 +70,11 @@ class PKBattle(Base, TimestampMixin):
     # 状态
     status = Column(
         String(20),
-        default=PKBattleStatus.WAITING,
         CheckConstraint(
             "status IN ('waiting', 'generating_practice', 'in_progress', 'completed', 'cancelled', 'timeout')",
             name="check_battle_status",
         ),
+        default=PKBattleStatus.WAITING,
     )
 
     # 关系

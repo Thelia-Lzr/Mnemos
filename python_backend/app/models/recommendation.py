@@ -63,3 +63,6 @@ class DailyLearningRecommendation(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<DailyLearningRecommendation(user_id={self.user_id}, language={self.language}, date={self.date})>"
+
+
+DailyRecommendation = DailyLearningRecommendation

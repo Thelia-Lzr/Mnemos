@@ -55,11 +55,11 @@ class ChatMessage(Base, TimestampMixin):
     ai_response = Column(JSONB, nullable=True)
     processing_status = Column(
         String(20),
-        default=ProcessingStatus.PENDING,
         CheckConstraint(
             "processing_status IN ('pending', 'processing', 'completed', 'failed')",
             name="check_processing_status",
         ),
+        default=ProcessingStatus.PENDING,
     )
     detected_intent = Column(String(100), nullable=True)
     function_calls = Column(JSONB, default=list)

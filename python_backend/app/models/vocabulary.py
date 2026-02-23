@@ -56,11 +56,11 @@ class VocabularyWord(Base, TimestampMixin):
     # 掌握程度
     mastery_level = Column(
         String(20),
-        default=MasteryLevel.NEW,
         CheckConstraint(
             "mastery_level IN ('new', 'learning', 'short_term', 'long_term', 'mastered')",
             name="check_mastery_level",
         ),
+        default=MasteryLevel.NEW,
     )
     mastery_score = Column(Integer, CheckConstraint("mastery_score >= 0 AND mastery_score <= 100"))
 

@@ -1,6 +1,7 @@
 """
 数据库连接配置
 """
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from sqlalchemy.orm import DeclarativeBase
 from typing import AsyncGenerator
@@ -85,7 +86,7 @@ async def health_check() -> dict:
             return {"healthy": False, "error": "Database engine not initialized"}
 
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
             return {
                 "healthy": True,
                 "pool_size": engine.pool.size() if engine.pool else 0,
