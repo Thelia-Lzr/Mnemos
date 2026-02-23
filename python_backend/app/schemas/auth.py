@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional
 from datetime import datetime
 import uuid
+from app.schemas.user import UserResponse
 
 
 class UserRegister(BaseModel):
@@ -58,5 +59,5 @@ class RefreshTokenRequest(BaseModel):
 
 class UserAuthResponse(BaseModel):
     """用户认证响应"""
-    user: dict
+    user: UserResponse
     tokens: TokenResponse

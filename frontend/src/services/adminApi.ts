@@ -220,8 +220,7 @@ export const adminApi = {
    * Get OpenRouter API usage statistics
    */
   getOpenRouterUsageStats: async (timeRange?: 'daily' | 'weekly' | 'monthly'): Promise<{ success: boolean; data: UsageStats }> => {
-    const params = timeRange ? { timeRange } : {};
-    const response = await api.get('/admin/openrouter/usage-stats', { params });
+    const response = await api.get('/admin/openrouter/usage-stats', { params: { timeRange } });
     return response.data;
   },
 
@@ -297,8 +296,22 @@ export const adminApi = {
    * Get user's credit information
    */
   getUserCredits: async (userId: string): Promise<{ success: boolean; data: { credits: UserCredit; usageStats: any } }> => {
-    const response = await api.get(`/admin/users/${userId}/credits`);
-    return response.data;
+    const response = await api.get(`/admin/users/${userId}`);
+    const user = response.data?.data?.user || {};
+    return {
+      success: true,
+      data: {
+        credits: {
+          userId,
+          currentBalance: user.creditBalance || 0,
+          totalEarned: user.totalCreditsEarned || 0,
+          totalSpent: user.totalCreditsSpent || 0,
+          averageMonthlySpending: 0,
+          updatedAt: new Date().toISOString(),
+        },
+        usageStats: {},
+      },
+    };
   },
 
   /**
@@ -313,7 +326,7 @@ export const adminApi = {
    * Get system-wide credit statistics
    */
   getCreditStatistics: async (): Promise<{ success: boolean; data: any }> => {
-    const response = await api.get('/admin/credit-statistics');
+    const response = await api.get('/admin/credit-stats');
     return response.data;
   },
 
@@ -331,8 +344,7 @@ export const adminApi = {
    * Get revenue statistics
    */
   getRevenueStats: async (days?: number): Promise<{ success: boolean; data: any }> => {
-    const params = days ? { days } : {};
-    const response = await api.get('/admin/revenue-stats', { params });
+    const response = await api.get('/admin/statistics', { params: { days } });
     return response.data;
   },
 
@@ -340,8 +352,7 @@ export const adminApi = {
    * Get usage statistics
    */
   getUsageStats: async (days?: number): Promise<{ success: boolean; data: any }> => {
-    const params = days ? { days } : {};
-    const response = await api.get('/admin/usage-stats', { params });
+    const response = await api.get('/monitoring/metrics', { params: { days } });
     return response.data;
   },
 
@@ -349,7 +360,7 @@ export const adminApi = {
    * Get user statistics
    */
   getUserStats: async (): Promise<{ success: boolean; data: any }> => {
-    const response = await api.get('/admin/user-stats');
+    const response = await api.get('/admin/statistics');
     return response.data;
   },
 
@@ -381,7 +392,7 @@ export const adminApi = {
    * Get failed tasks
    */
   getFailedTasks: async (params?: { limit?: number; offset?: number }): Promise<{ success: boolean; data: { tasks: AsyncTask[]; totalCount: number } }> => {
-    const response = await api.get('/admin/failed-tasks', { params });
+    const response = await api.get('/admin/tasks', { params: { ...params, status: 'failed' } });
     return response.data;
   },
 

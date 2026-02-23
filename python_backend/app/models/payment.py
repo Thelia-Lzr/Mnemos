@@ -15,7 +15,7 @@ from sqlalchemy import (
     DECIMAL,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 import uuid
 
 from app.models.base import Base, TimestampMixin
@@ -135,7 +135,11 @@ class UserCredit(Base, TimestampMixin):
 
     # 关系
     user = relationship("User", back_populates="credits")
-    transactions = relationship("CreditTransaction", back_populates="user", cascade="all, delete-orphan")
+    transactions = relationship(
+        "CreditTransaction",
+        primaryjoin="UserCredit.user_id == foreign(CreditTransaction.user_id)",
+        viewonly=True,
+    )
 
     def __repr__(self) -> str:
         return f"<UserCredit(user_id={self.user_id}, current_balance={self.current_balance})>"

@@ -77,64 +77,111 @@ export interface TaskResponse {
 }
 
 export class DailyRecommendationApi {
+  private static normalizeRecommendation(raw: any): DailyLearningRecommendation {
+    const recommendationData = raw?.recommendationData || {};
+
+    const quickPracticeOptions =
+      raw?.quickPracticeOptions || recommendationData.quick_practice_options || [];
+
+    const normalizedRecommendations: LearningRecommendation[] =
+      Array.isArray(raw?.recommendations) && raw.recommendations.length > 0
+        ? raw.recommendations
+        : [
+            {
+              id: 'review_items',
+              type: RecommendationType.REVIEW_REMINDER,
+              title: '复习任务',
+              description:
+                recommendationData.review_items?.[0]?.description || '完成今日复习任务',
+              priority: 1,
+              focusAreas: ['review'],
+              suggestedActivities: recommendationData.practice_suggestions || [],
+              estimatedTime: recommendationData.review_items?.[0]?.count || 10,
+            },
+            {
+              id: 'new_learning',
+              type: RecommendationType.SKILL_IMPROVEMENT,
+              title: '新学习内容',
+              description:
+                recommendationData.new_learning?.[0]?.topic || '学习新知识点',
+              priority: 2,
+              focusAreas: ['learning'],
+              suggestedActivities: recommendationData.practice_suggestions || [],
+              estimatedTime: recommendationData.new_learning?.[0]?.estimated_time || 15,
+            },
+          ];
+
+    return {
+      id: raw?.id || 'unknown',
+      userId: raw?.userId || '',
+      language: raw?.language || 'en',
+      date: raw?.date || new Date().toISOString().slice(0, 10),
+      recommendations: normalizedRecommendations,
+      quickPracticeOptions,
+      basedOnCapability: raw?.basedOnCapability,
+      basedOnMilestones: raw?.basedOnMilestones || [],
+      basedOnVocabulary: raw?.basedOnVocabulary || [],
+      userFeedback: raw?.userFeedback,
+      isViewed: Boolean(raw?.isViewed),
+      viewedAt: raw?.viewedAt,
+      aiModel: raw?.aiModel || 'fallback/local',
+      generationTime: raw?.generationTime || 0,
+      tokensUsed: raw?.tokensUsed || 0,
+      createdAt: raw?.createdAt || new Date().toISOString(),
+    };
+  }
+
   /**
    * Get today's daily learning recommendation
    */
   static async getTodaysRecommendation(language: string): Promise<DailyLearningRecommendation> {
-    const response = await api.get<ApiResponse<DailyLearningRecommendation>>(
+    const response = await api.get<ApiResponse<DailyLearningRecommendation[]>>(
       `/daily-recommendations/${language}/today`
     );
     
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to get daily recommendation');
     }
-    
-    return response.data.data;
+
+    if (response.data.data.length === 0) {
+      throw new Error('No daily recommendation available');
+    }
+
+    return this.normalizeRecommendation(response.data.data[0]);
   }
 
   /**
    * Generate new daily recommendation (synchronous)
    */
   static async generateRecommendation(language: string): Promise<DailyLearningRecommendation> {
-    const response = await api.post<ApiResponse<DailyLearningRecommendation>>(
+    const response = await api.post<ApiResponse<unknown>>(
       `/daily-recommendations/${language}/generate`
     );
-    
-    if (!response.data.success || !response.data.data) {
+
+    if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to generate daily recommendation');
     }
-    
-    return response.data.data;
+
+    return this.getTodaysRecommendation(language);
   }
 
   /**
    * Generate new daily recommendation (asynchronous)
    */
   static async generateRecommendationAsync(language: string): Promise<TaskResponse> {
-    const response = await api.post<ApiResponse<TaskResponse>>(
-      `/daily-recommendations/${language}/generate-async`
-    );
-    
-    if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'Failed to start recommendation generation');
-    }
-    
-    return response.data.data;
+    await this.generateRecommendation(language);
+    return {
+      taskId: 'sync-generated',
+      message: 'Recommendation generated synchronously',
+      status: 'completed'
+    };
   }
 
   /**
    * Generate quick practice based on recommendation option
    */
   static async generateQuickPractice(language: string, practiceOptionId: string): Promise<TaskResponse> {
-    const response = await api.post<ApiResponse<TaskResponse>>(
-      `/daily-recommendations/${language}/quick-practice/${practiceOptionId}`
-    );
-    
-    if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'Failed to generate quick practice');
-    }
-    
-    return response.data.data;
+    throw new Error('当前后端未提供 quick-practice 端点');
   }
 
   /**
@@ -144,9 +191,15 @@ export class DailyRecommendationApi {
     language: string, 
     feedback: Omit<RecommendationFeedback, 'submittedAt'>
   ): Promise<void> {
+    const recommendation = await this.getTodaysRecommendation(language);
+
     const response = await api.post<ApiResponse<void>>(
       `/daily-recommendations/${language}/feedback`,
-      feedback
+      {
+        recommendation_id: recommendation.id,
+        rating: feedback.rating,
+        isHelpful: feedback.isHelpful
+      }
     );
     
     if (!response.data.success) {
@@ -161,7 +214,7 @@ export class DailyRecommendationApi {
     language: string, 
     limit: number = 30
   ): Promise<{ history: DailyLearningRecommendation[]; count: number }> {
-    const response = await api.get<ApiResponse<{ history: DailyLearningRecommendation[]; count: number }>>(
+    const response = await api.get<ApiResponse<DailyLearningRecommendation[]>>(
       `/daily-recommendations/${language}/history?limit=${limit}`
     );
     
@@ -169,16 +222,23 @@ export class DailyRecommendationApi {
       throw new Error(response.data.error || 'Failed to get recommendation history');
     }
     
-    return response.data.data;
+    return {
+      history: response.data.data.map((item) => this.normalizeRecommendation(item)),
+      count: response.data.data.length
+    };
   }
 
   /**
    * Mark recommendation as viewed
    */
   static async markAsViewed(language: string, date?: string): Promise<void> {
+    const recommendation = date
+      ? await this.getRecommendationByDate(language, date)
+      : await this.getTodaysRecommendation(language);
+
     const response = await api.post<ApiResponse<void>>(
-      `/daily-recommendations/${language}/mark-viewed`,
-      { date }
+      `/daily-recommendations/${language}/view`,
+      { recommendation_id: recommendation.id }
     );
     
     if (!response.data.success) {
@@ -190,7 +250,7 @@ export class DailyRecommendationApi {
    * Get recommendation for specific date
    */
   static async getRecommendationByDate(language: string, date: string): Promise<DailyLearningRecommendation> {
-    const response = await api.get<ApiResponse<DailyLearningRecommendation>>(
+    const response = await api.get<ApiResponse<DailyLearningRecommendation[]>>(
       `/daily-recommendations/${language}/date/${date}`
     );
     
@@ -198,6 +258,10 @@ export class DailyRecommendationApi {
       throw new Error(response.data.error || 'Failed to get recommendation for date');
     }
     
-    return response.data.data;
+    if (response.data.data.length === 0) {
+      throw new Error('No recommendation found for the selected date');
+    }
+
+    return this.normalizeRecommendation(response.data.data[0]);
   }
 }

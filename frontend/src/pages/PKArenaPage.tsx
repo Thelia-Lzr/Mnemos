@@ -17,7 +17,7 @@ import PKMatchingInterface from '../components/PK/PKMatchingInterface';
 import PKBattleInterface from '../components/PK/PKBattleInterface';
 import PKLeaderboard from '../components/PK/PKLeaderboard';
 import PKBattleHistory from '../components/PK/PKBattleHistory';
-import SecurityUtils from '../utils/security';
+import api from '../services/api';
 
 const PKArenaPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -34,18 +34,12 @@ const PKArenaPage: React.FC = () => {
 
   const fetchUserCredit = async () => {
     try {
-      const response = await fetch('/api/users/credit', {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUserCredit(data.data.currentBalance);
-      }
+      const response = await api.get('/payment/credits');
+      const payload = response.data?.data ?? response.data;
+      const balance = payload?.currentBalance ?? payload?.balance ?? 0;
+      setUserCredit(Number.isFinite(balance) ? balance : 0);
     } catch (error) {
-      console.error('Error fetching user credit:', error);
+      setUserCredit(0);
     }
   };
 

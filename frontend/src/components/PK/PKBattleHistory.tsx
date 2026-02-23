@@ -22,7 +22,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from '@mui/icons-material';
-import { SecurityUtils } from '../../utils/security';
+import api from '../../services/api';
 
 interface BattleHistoryEntry {
   id: string;
@@ -57,18 +57,15 @@ const PKBattleHistory: React.FC<PKBattleHistoryProps> = ({ language }) => {
   const fetchBattleHistory = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/pk/history?limit=20', {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setBattles(data.data);
-      } else {
-        throw new Error('Failed to fetch battle history');
-      }
+      const response = await api.get('/pk/history', { params: { limit: 20, language } });
+      const payload = response.data?.data ?? response.data;
+      const nextBattles = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.battles)
+          ? payload.battles
+          : [];
+      setBattles(nextBattles);
+      setError(null);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {

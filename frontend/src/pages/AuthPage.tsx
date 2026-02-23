@@ -113,16 +113,15 @@ const AuthPage: React.FC = () => {
         password: loginForm.password
       });
 
-      if (response.data.success) {
+      const token = response.data.token || response.data.tokens?.access_token;
+      const refreshToken = response.data.refreshToken || response.data.tokens?.refresh_token;
+
+      if (token && response.data.user) {
         dispatch(loginSuccess({
           user: response.data.user,
-          token: response.data.token
+          token,
+          refreshToken
         }));
-        
-        // Store refresh token if provided
-        if (response.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.refreshToken);
-        }
       } else {
         dispatch(loginFailure(response.data.message || 'Login failed'));
       }
@@ -159,16 +158,15 @@ const AuthPage: React.FC = () => {
 
       const response = await api.post('/auth/register', registerData);
 
-      if (response.data.success) {
+      const token = response.data.token || response.data.tokens?.access_token;
+      const refreshToken = response.data.refreshToken || response.data.tokens?.refresh_token;
+
+      if (token && response.data.user) {
         dispatch(loginSuccess({
           user: response.data.user,
-          token: response.data.token
+          token,
+          refreshToken
         }));
-        
-        // Store refresh token if provided
-        if (response.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.refreshToken);
-        }
       } else {
         dispatch(loginFailure(response.data.message || 'Registration failed'));
       }

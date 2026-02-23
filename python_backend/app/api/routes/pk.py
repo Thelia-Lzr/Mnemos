@@ -58,14 +58,21 @@ async def find_match(
             # 仍在匹配中
             return {
                 "success": True,
+                "data": {
+                    "status": "searching",
+                    "id": str(match_request.id),
+                    "requestId": str(match_request.id),
+                    "estimatedWaitTime": 30,
+                },
                 "message": "Looking for opponent...",
-                "requestId": str(match_request.id),
-                "estimatedWaitTime": 30,
             }
         else:
             # 已找到对手（通过 WebSocket 通知）
             return {
                 "success": True,
+                "data": {
+                    "status": "matched",
+                },
                 "message": "Match found! Check WebSocket for details",
             }
     except Exception as e:
@@ -271,15 +278,29 @@ async def get_battle_history(
                 "language": b.language,
                 "player1Score": b.player1_score,
                 "player2Score": b.player2_score,
+                "player1Time": b.player1_time,
+                "player2Time": b.player2_time,
                 "winnerId": str(b.winner_id) if b.winner_id else None,
                 "player1MmrChange": b.player1_mmr_change,
                 "player2MmrChange": b.player2_mmr_change,
+                "createdAt": b.created_at,
                 "endTime": b.end_time,
                 "status": b.status,
             }
             for b in battles
         ],
     }
+
+
+@router.get("/leaderboard")
+async def get_leaderboard_compat(
+    *,
+    language: str = Query("en"),
+    limit: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """兼容前端 query 形式排行榜接口"""
+    return await get_leaderboard(language=language, limit=limit, db=db)
 
 
 @router.get("/mmr/{language}", response_model=UserMMRResponse)

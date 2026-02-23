@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, delete
 from typing import Optional, List, Dict, Any
 import uuid
 import sqlalchemy
@@ -21,7 +21,7 @@ from app.schemas.practice import (
     PracticeFollowupRequest,
 )
 from app.services.practice_service import PracticeService, get_practice_service
-from app.models.practice import PracticeGroup
+from app.models.practice import PracticeGroup, PracticeResult, PracticeAIAnalysis
 from app.models.user import User
 
 router = APIRouter(prefix="/api/practice", tags=["练习"])
@@ -79,7 +79,7 @@ async def generate_practice_group(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/groups", response_model=List[PracticeGroupResponse])
+@router.get("/groups")
 async def get_practice_groups(
     *,
     db: AsyncSession = Depends(get_db),
@@ -100,7 +100,12 @@ async def get_practice_groups(
     )
     groups = list(result.scalars().all())
 
-    return [
+    total_result = await db.execute(
+        select(func.count(PracticeGroup.id)).where(PracticeGroup.user_id == uuid.UUID(str(current_user.id)))
+    )
+    total = int(total_result.scalar() or 0)
+
+    data = [
         PracticeGroupResponse(
             id=str(g.id),
             userId=str(g.user_id),
@@ -115,6 +120,16 @@ async def get_practice_groups(
         )
         for g in groups
     ]
+
+    return {
+        "success": True,
+        "data": data,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+        },
+    }
 
 
 @router.get("/group/{group_id}", response_model=PracticeGroupResponse)
@@ -213,7 +228,7 @@ async def submit_practice(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/history", response_model=List[PracticeHistoryResponse])
+@router.get("/history")
 async def get_practice_history(
     *,
     db: AsyncSession = Depends(get_db),
@@ -222,27 +237,122 @@ async def get_practice_history(
     current_user: User = Depends(get_current_user),
 ):
     """获取练习历史"""
-    practice_service = get_practice_service(db)
+    user_uuid = uuid.UUID(str(current_user.id))
 
-    results = await practice_service.get_practice_history(
-        user_id=str(current_user.id),
-        limit=limit,
-        offset=offset,
+    groups_result = await db.execute(
+        select(PracticeGroup)
+        .where(PracticeGroup.user_id == user_uuid)
+        .order_by(PracticeGroup.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
+    groups = list(groups_result.scalars().all())
 
-    return [
-        PracticeHistoryResponse(
-            id=str(r.id),
-            practiceGroupId=str(r.practice_group_id),
-            practiceGroupTitle="",  # TODO: 加载关联的练习组标题
-            language="",  # TODO: 从练习组获取语言
-            accuracy=float(r.accuracy),
-            totalQuestions=r.total_questions,
-            correctAnswers=r.correct_answers,
-            completedAt=r.completed_at,
+    total_result = await db.execute(
+        select(func.count(PracticeGroup.id)).where(PracticeGroup.user_id == user_uuid)
+    )
+    total = int(total_result.scalar() or 0)
+
+    history_items = []
+    for group in groups:
+        latest_result_query = await db.execute(
+            select(PracticeResult)
+            .where(
+                PracticeResult.user_id == user_uuid,
+                PracticeResult.practice_group_id == group.id,
+            )
+            .order_by(
+                PracticeResult.completed_at.desc().nullslast(),
+                PracticeResult.created_at.desc(),
+            )
+            .limit(1)
         )
-        for r in results
-    ]
+        latest_result = latest_result_query.scalar_one_or_none()
+
+        latest_analysis = None
+        if latest_result:
+            analysis_query = await db.execute(
+                select(PracticeAIAnalysis)
+                .where(PracticeAIAnalysis.practice_result_id == latest_result.id)
+                .limit(1)
+            )
+            latest_analysis = analysis_query.scalar_one_or_none()
+
+        history_items.append(
+            {
+                "practiceGroupId": str(group.id),
+                "title": group.title,
+                "description": group.description or "",
+                "language": group.language,
+                "difficulty": group.difficulty,
+                "type": group.type,
+                "practiceCreatedAt": group.created_at.isoformat() if group.created_at else None,
+                "result": {
+                    "id": str(latest_result.id),
+                    "accuracy": float(latest_result.accuracy),
+                    "totalTime": latest_result.total_time,
+                    "completedAt": latest_result.completed_at.isoformat() if latest_result.completed_at else None,
+                } if latest_result else None,
+                "analysis": {
+                    "id": str(latest_analysis.id),
+                    "analysisContent": latest_analysis.analysis_content,
+                    "learningAdvice": latest_analysis.learning_advice,
+                    "createdAt": latest_analysis.created_at.isoformat() if latest_analysis.created_at else None,
+                } if latest_analysis else None,
+            }
+        )
+
+    return {
+        "success": True,
+        "data": history_items,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+        },
+    }
+
+
+@router.delete("/history")
+async def batch_delete_practice_history(
+    *,
+    request: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """批量删除练习历史（仅删除结果与分析，保留练习组）"""
+    practice_group_ids = request.get("practiceGroupIds")
+    if not isinstance(practice_group_ids, list):
+        raise HTTPException(status_code=400, detail="practiceGroupIds must be an array")
+
+    if not practice_group_ids:
+        return {
+            "success": True,
+            "message": "No practice history selected",
+            "deletedCount": 0,
+        }
+
+    try:
+        group_uuids = [uuid.UUID(str(group_id)) for group_id in practice_group_ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid practiceGroupIds format")
+
+    stmt = (
+        delete(PracticeResult)
+        .where(
+            PracticeResult.user_id == uuid.UUID(str(current_user.id)),
+            PracticeResult.practice_group_id.in_(group_uuids),
+        )
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+
+    deleted_count = int(result.rowcount or 0)
+    return {
+        "success": True,
+        "message": f"Deleted {deleted_count} practice history record(s)",
+        "deletedCount": deleted_count,
+    }
 
 
 @router.post("/group/{group_id}/analyze", response_model=PracticeAIAnalysisResponse)

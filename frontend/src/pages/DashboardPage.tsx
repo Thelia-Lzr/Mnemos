@@ -130,12 +130,14 @@ const DashboardPage: React.FC = () => {
 
       // Fetch user credits
       try {
-        const creditsResponse = await api.get('/users/credits');
-        if (creditsResponse.data.success) {
+        const creditsResponse = await api.get('/payment/credits');
+        const creditsData = creditsResponse.data?.data?.credits || creditsResponse.data;
+
+        if (creditsData) {
           setUserCredits({
-            currentBalance: creditsResponse.data.data.credits.currentBalance,
-            totalEarned: creditsResponse.data.data.credits.totalEarned,
-            totalSpent: creditsResponse.data.data.credits.totalSpent
+            currentBalance: creditsData.currentBalance ?? creditsData.balance ?? 0,
+            totalEarned: creditsData.totalEarned ?? 0,
+            totalSpent: creditsData.totalSpent ?? 0,
           });
         }
       } catch (creditsError) {
@@ -151,7 +153,22 @@ const DashboardPage: React.FC = () => {
       // Fetch learning status
       const learningResponse = await api.get('/users/learning-status');
       if (learningResponse.data.success) {
-        const learningData = learningResponse.data.learningStatus;
+        const learningData =
+          learningResponse.data.learningStatus ||
+          learningResponse.data.data?.learningStatus ||
+          learningResponse.data.data?.languages ||
+          [];
+
+        if (!Array.isArray(learningData) || learningData.length === 0) {
+          setLearningStats({
+            totalStudyTime: 0,
+            streakDays: 0,
+            completedPractices: 0,
+            vocabularyMastered: 0,
+            currentLevel: 'A1',
+            overallProgress: 0,
+          });
+        } else {
         
         // Process learning statistics
         const stats: LearningStats = {
@@ -168,6 +185,7 @@ const DashboardPage: React.FC = () => {
         };
         
         setLearningStats(stats);
+        }
       }
 
       // Fetch recent activities (mock data for now)

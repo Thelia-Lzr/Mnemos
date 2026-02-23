@@ -10,6 +10,45 @@ USERNAME = "thelia"
 PASSWORD = "123456"
 
 
+async def upsert_user_credits(conn: asyncpg.Connection, user_id: str, target_credits: int) -> None:
+    credit_column = await conn.fetchval(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'user_credits'
+          AND column_name IN ('current_balance', 'balance')
+        LIMIT 1
+        """
+    )
+
+    if credit_column == "current_balance":
+        await conn.execute(
+            """
+            INSERT INTO user_credits (id, user_id, current_balance, total_earned, total_spent, created_at, updated_at)
+            VALUES ($1, $2, $3, $3, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO UPDATE
+            SET current_balance = EXCLUDED.current_balance,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            str(uuid.uuid4()),
+            user_id,
+            target_credits,
+        )
+    elif credit_column == "balance":
+        await conn.execute(
+            """
+            INSERT INTO user_credits (id, user_id, balance, total_earned, total_spent, created_at, updated_at)
+            VALUES ($1, $2, $3, $3, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO UPDATE
+            SET balance = EXCLUDED.balance,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            str(uuid.uuid4()),
+            user_id,
+            target_credits,
+        )
+
+
 async def main() -> None:
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,7 +63,19 @@ async def main() -> None:
     try:
         existing = await conn.fetchval("SELECT id FROM users WHERE email = $1", EMAIL)
         if existing:
+            await conn.execute("UPDATE users SET role = 'admin' WHERE id = $1", existing)
+            await conn.execute(
+                """
+                INSERT INTO user_preferences (id, user_id, created_at, updated_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO NOTHING
+                """,
+                str(uuid.uuid4()),
+                existing,
+            )
+            await upsert_user_credits(conn, str(existing), 1000)
             print(f"测试用户已存在: {EMAIL}")
+            print("已尝试重新发放 admin 权限并将 credits 刷新为 1000")
             print(f"测试账号: {EMAIL}")
             print(f"测试密码: {PASSWORD}")
             return
@@ -34,7 +85,7 @@ async def main() -> None:
         await conn.execute(
             """
             INSERT INTO users (id, username, email, password_hash, role)
-            VALUES ($1, $2, $3, $4, 'user')
+            VALUES ($1, $2, $3, $4, 'admin')
             """,
             user_id,
             USERNAME,
@@ -43,43 +94,19 @@ async def main() -> None:
         )
 
         await conn.execute(
-            "INSERT INTO user_preferences (id, user_id) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+            """
+            INSERT INTO user_preferences (id, user_id, created_at, updated_at)
+            VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
             str(uuid.uuid4()),
             user_id,
         )
 
-        credit_column = await conn.fetchval(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'user_credits'
-              AND column_name IN ('current_balance', 'balance')
-            LIMIT 1
-            """
-        )
-
-        if credit_column == "current_balance":
-            await conn.execute(
-                """
-                INSERT INTO user_credits (id, user_id, current_balance, total_earned, total_spent)
-                VALUES ($1, $2, 100, 100, 0)
-                ON CONFLICT (user_id) DO NOTHING
-                """,
-                str(uuid.uuid4()),
-                user_id,
-            )
-        elif credit_column == "balance":
-            await conn.execute(
-                """
-                INSERT INTO user_credits (id, user_id, balance, total_earned, total_spent)
-                VALUES ($1, $2, 100, 100, 0)
-                ON CONFLICT (user_id) DO NOTHING
-                """,
-                str(uuid.uuid4()),
-                user_id,
-            )
+        await upsert_user_credits(conn, user_id, 100)
 
         print(f"测试用户已创建: {EMAIL}")
+        print("已授予 admin 权限并发放 100 credits")
         print(f"测试账号: {EMAIL}")
         print(f"测试密码: {PASSWORD}")
     finally:

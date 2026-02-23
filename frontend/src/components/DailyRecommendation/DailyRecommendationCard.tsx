@@ -211,6 +211,7 @@ const DailyRecommendationCard: React.FC<DailyRecommendationCardProps> = ({ langu
           <h3 className="text-lg font-semibold text-gray-900 mb-4">个性化学习建议</h3>
           <div className="space-y-4">
             {currentRecommendation.recommendations
+              .slice()
               .sort((a, b) => a.priority - b.priority)
               .map((recommendation) => (
                 <RecommendationItem

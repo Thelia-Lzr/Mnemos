@@ -29,7 +29,7 @@ import {
 import {
   Refresh,
   Warning,
-  Error,
+  Error as ErrorIcon,
   Info,
   CheckCircle,
   Memory,
@@ -81,6 +81,36 @@ interface Alert {
   metadata?: any;
 }
 
+const parseSystemHealth = (response: any): SystemHealth => {
+  if (!response?.data?.success || !response?.data?.data) {
+    throw new Error('Invalid /monitoring/health response');
+  }
+
+  const health = response.data.data;
+  const requiredServices = ['database', 'redis', 'memory', 'cpu'];
+  const hasAllServices = requiredServices.every((name) => health?.services?.[name]);
+  const hasMetrics = health?.metrics
+    && typeof health.metrics.activeConnections === 'number'
+    && typeof health.metrics.memoryUsage === 'number'
+    && typeof health.metrics.cpuUsage === 'number'
+    && typeof health.metrics.responseTime === 'number'
+    && typeof health.metrics.errorRate === 'number';
+
+  if (!hasAllServices || !hasMetrics) {
+    throw new Error('Malformed monitoring health payload');
+  }
+
+  return health as SystemHealth;
+};
+
+const parseAlerts = (response: any): Alert[] => {
+  if (!response?.data?.success || !Array.isArray(response?.data?.data)) {
+    throw new Error('Invalid /monitoring/alerts response');
+  }
+
+  return response.data.data as Alert[];
+};
+
 const SystemMonitoring: React.FC = () => {
   const theme = useTheme();
   const [health, setHealth] = useState<SystemHealth | null>(null);
@@ -110,13 +140,11 @@ const SystemMonitoring: React.FC = () => {
         api.get('/monitoring/alerts?limit=50')
       ]);
 
-      if (healthResponse.data.success) {
-        setHealth(healthResponse.data.data);
-      }
+      const parsedHealth = parseSystemHealth(healthResponse);
+      const parsedAlerts = parseAlerts(alertsResponse);
 
-      if (alertsResponse.data.success) {
-        setAlerts(alertsResponse.data.data);
-      }
+      setHealth(parsedHealth);
+      setAlerts(parsedAlerts);
     } catch (error) {
       ErrorHandler.handleApiError(error);
     } finally {
@@ -154,7 +182,7 @@ const SystemMonitoring: React.FC = () => {
     switch (status) {
       case 'healthy': return <CheckCircle sx={{ color: theme.palette.success.main }} />;
       case 'degraded': return <Warning sx={{ color: theme.palette.warning.main }} />;
-      case 'critical': return <Error sx={{ color: theme.palette.error.main }} />;
+      case 'critical': return <ErrorIcon sx={{ color: theme.palette.error.main }} />;
       default: return <Info sx={{ color: theme.palette.grey[500] }} />;
     }
   };
@@ -321,7 +349,7 @@ const SystemMonitoring: React.FC = () => {
                       <TableRow key={alert.id}>
                         <TableCell>
                           <Chip
-                            icon={alert.type === 'error' ? <Error /> : alert.type === 'warning' ? <Warning /> : <Info />}
+                            icon={alert.type === 'error' ? <ErrorIcon /> : alert.type === 'warning' ? <Warning /> : <Info />}
                             label={alert.type}
                             color={alert.type === 'error' ? 'error' : alert.type === 'warning' ? 'warning' : 'info'}
                             size="small"

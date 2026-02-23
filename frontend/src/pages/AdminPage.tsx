@@ -73,8 +73,7 @@ const AdminPage: React.FC = () => {
             value={tabValue} 
             onChange={handleTabChange} 
             aria-label="admin tabs"
-            variant="scrollable"
-            scrollButtons="auto"
+            variant="standard"
           >
             <Tab 
               icon={<DashboardIcon />} 

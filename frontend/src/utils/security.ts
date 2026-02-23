@@ -147,7 +147,15 @@ export class SecurityUtils {
   static getSecureItem<T>(key: string): T | null {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
+      if (!item) {
+        return null;
+      }
+
+      try {
+        return JSON.parse(item) as T;
+      } catch {
+        return item as T;
+      }
     } catch (error) {
       console.error('Failed to read from localStorage:', error);
       return null;

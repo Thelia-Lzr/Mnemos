@@ -95,7 +95,7 @@ class CreditBalanceResponse(BaseModel):
     balance: int
     totalEarned: int
     totalSpent: int
-    lastUpdated: datetime
+    lastUpdated: Optional[datetime] = None
 
 
 class CreditTransactionResponse(BaseModel):

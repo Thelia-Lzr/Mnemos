@@ -54,16 +54,31 @@ export const refreshAuthToken = createAsyncThunk(
         throw new Error('No refresh token available');
       }
 
-      const response = await api.post('/auth/refresh', { refreshToken });
-      
-      if (response.data.success) {
+      const response = await api.post('/auth/refresh', {
+        refresh_token: refreshToken,
+        refreshToken,
+      });
+
+      const token =
+        response.data.token ||
+        response.data.access_token ||
+        response.data.tokens?.access_token;
+
+      const nextRefreshToken =
+        response.data.refreshToken ||
+        response.data.refresh_token ||
+        response.data.tokens?.refresh_token ||
+        refreshToken;
+
+      if (token) {
         return {
           user: response.data.user,
-          token: response.data.token
+          token,
+          refreshToken: nextRefreshToken,
         };
-      } else {
-        throw new Error(response.data.message || 'Token refresh failed');
       }
+
+      throw new Error(response.data.message || 'Token refresh failed');
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Token refresh failed');
     }
@@ -76,15 +91,17 @@ export const loadUserProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('/auth/profile');
-      
-      if (response.data.success) {
+
+      const user = response.data.user || response.data;
+
+      if (user?.id) {
         return {
-          user: response.data.user,
-          preferences: response.data.preferences
+          user,
+          preferences: response.data.preferences || null,
         };
-      } else {
-        throw new Error(response.data.message || 'Failed to load profile');
       }
+
+      throw new Error(response.data.message || 'Failed to load profile');
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to load profile');
     }
@@ -145,8 +162,14 @@ const authSlice = createSlice({
       .addCase(refreshAuthToken.fulfilled, (state, action) => {
         state.loading = false;
         state.isAuthenticated = true;
-        state.user = action.payload.user;
+        if (action.payload.user) {
+          state.user = action.payload.user;
+        }
         state.token = action.payload.token;
+        if (action.payload.refreshToken) {
+          state.refreshToken = action.payload.refreshToken;
+          SecurityUtils.setSecureItem('refreshToken', action.payload.refreshToken);
+        }
         state.error = null;
         SecurityUtils.setSecureItem('token', action.payload.token);
       })

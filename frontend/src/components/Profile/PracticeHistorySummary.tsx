@@ -54,7 +54,9 @@ const PracticeHistorySummary: React.FC = () => {
   const fetchPracticeStats = async () => {
     try {
       const historyResponse = await practiceApi.getPracticeHistory(10, 0);
-      const recentPractices = historyResponse.data;
+      const recentPractices = Array.isArray(historyResponse?.data)
+        ? historyResponse.data
+        : [];
 
       // Calculate stats from recent practices
       const completedPractices = recentPractices.filter(p => p.result);
@@ -78,7 +80,14 @@ const PracticeHistorySummary: React.FC = () => {
 
       setStats(practiceStats);
     } catch (error) {
-      console.error('Error fetching practice stats:', error);
+      setStats({
+        totalPractices: 0,
+        averageAccuracy: 0,
+        totalStudyTime: 0,
+        completedToday: 0,
+        currentStreak: 0,
+        recentPractices: [],
+      });
     } finally {
       setLoading(false);
     }
@@ -114,10 +123,10 @@ const PracticeHistorySummary: React.FC = () => {
   const fetchFullHistory = async () => {
     try {
       const response = await practiceApi.getPracticeHistory(50, 0);
-      setFullHistory(response.data);
+      setFullHistory(Array.isArray(response?.data) ? response.data : []);
       setHistoryDialogOpen(true);
     } catch (error) {
-      console.error('Error fetching full history:', error);
+      setFullHistory([]);
     }
   };
 

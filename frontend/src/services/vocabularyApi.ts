@@ -94,11 +94,17 @@ export const vocabularyApi = {
   getVocabularyWords: async (language: string, masteryLevel?: string): Promise<{ words: VocabularyWord[] }> => {
     const params = new URLSearchParams({ language });
     if (masteryLevel) {
-      params.append('masteryLevel', masteryLevel);
+      params.append('mastery_level', masteryLevel);
     }
     
     const response = await api.get(`/vocabulary/words?${params.toString()}`);
-    return response.data.data;
+    const payload = response.data?.data ?? response.data;
+    const words = Array.isArray(payload?.words)
+      ? payload.words
+      : Array.isArray(payload)
+        ? payload
+        : [];
+    return { words };
   },
 
   // Add words from text
@@ -115,8 +121,7 @@ export const vocabularyApi = {
   // Update word mastery
   updateMastery: async (wordId: string, practiceScore: number, responseTime: number): Promise<any> => {
     const response = await api.put(`/vocabulary/word/${wordId}/mastery`, {
-      practiceScore,
-      responseTime
+      mastery_score: practiceScore
     });
     return response.data.data;
   },
@@ -181,13 +186,13 @@ export const vocabularyApi = {
 
   // Generate adaptive practice
   generateAdaptivePractice: async (language: string): Promise<VocabularyPracticeGroup> => {
-    const response = await api.post('/vocabulary/generate-adaptive-practice', { language });
+    const response = await api.post('/vocabulary/generate-practice', { language });
     return response.data.data;
   },
 
   // Submit practice results
   submitPracticeResults: async (results: PracticeResult[]): Promise<void> => {
-    await api.post('/vocabulary/submit-practice-results', { results });
+    await api.post('/vocabulary/submit-practice', { results });
   },
 
   // Get learning efficiency metrics

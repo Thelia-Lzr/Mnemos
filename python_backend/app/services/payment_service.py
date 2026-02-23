@@ -197,7 +197,7 @@ class PaymentService:
 
         return {
             "userId": user_id,
-            "balance": credits.balance,
+            "balance": credits.current_balance,
             "totalEarned": credits.total_earned,
             "totalSpent": credits.total_spent,
             "lastUpdated": credits.updated_at.isoformat() if credits.updated_at else None,
@@ -241,8 +241,8 @@ class PaymentService:
         """添加/扣除积分"""
         credits = await self._get_or_create_credits(user_id)
 
-        old_balance = credits.balance
-        credits.balance += amount
+        old_balance = credits.current_balance
+        credits.current_balance += amount
 
         if amount > 0:
             credits.total_earned += amount
@@ -253,7 +253,7 @@ class PaymentService:
         transaction = CreditTransaction(
             user_id=uuid.UUID(user_id),
             amount=amount,
-            balance_after=credits.balance,
+            balance_after=credits.current_balance,
             transaction_type=transaction_type,
             description=description,
             reference_id=reference_id,
@@ -272,7 +272,7 @@ class PaymentService:
         if not credits:
             credits = UserCredit(
                 user_id=uuid.UUID(user_id),
-                balance=0,
+                current_balance=0,
                 total_earned=0,
                 total_spent=0,
             )

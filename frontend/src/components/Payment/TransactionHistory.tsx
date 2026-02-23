@@ -97,6 +97,11 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   onLoadMore,
   hasMore = false,
 }) => {
+  const orders = Array.isArray(transactions?.orders) ? transactions.orders : [];
+  const creditTransactions = Array.isArray(transactions?.creditTransactions)
+    ? transactions.creditTransactions
+    : [];
+
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     orders: false,
     credits: true,
@@ -196,14 +201,14 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             sx={{ justifyContent: 'flex-start', textTransform: 'none', p: 1 }}
           >
             <Typography variant="subtitle2">
-              充值订单 ({transactions.orders.length})
+              充值订单 ({orders.length})
             </Typography>
           </Button>
           
           <Collapse in={expandedSections.orders}>
             <List dense>
-              {transactions.orders.length > 0 ? (
-                transactions.orders.map(renderOrderItem)
+              {orders.length > 0 ? (
+                orders.map(renderOrderItem)
               ) : (
                 <ListItem>
                   <ListItemText
@@ -229,14 +234,14 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             sx={{ justifyContent: 'flex-start', textTransform: 'none', p: 1 }}
           >
             <Typography variant="subtitle2">
-              Credit消费 ({transactions.creditTransactions.length})
+              Credit消费 ({creditTransactions.length})
             </Typography>
           </Button>
           
           <Collapse in={expandedSections.credits}>
             <List dense>
-              {transactions.creditTransactions.length > 0 ? (
-                transactions.creditTransactions.map(renderCreditTransaction)
+              {creditTransactions.length > 0 ? (
+                creditTransactions.map(renderCreditTransaction)
               ) : (
                 <ListItem>
                   <ListItemText

@@ -27,6 +27,11 @@ export interface UpdateUserLanguageRequest {
 }
 
 class UserLanguageApi {
+  private async findLanguageByCode(language: string): Promise<UserLanguage | null> {
+    const languages = await this.getUserLanguages();
+    return languages.find((item) => item.language === language) || null;
+  }
+
   /**
    * Get all user languages
    */
@@ -41,30 +46,15 @@ class UserLanguageApi {
    * Get primary language
    */
   async getPrimaryLanguage(): Promise<UserLanguage | null> {
-    try {
-      const response = await api.get('/user-languages/primary');
-      return response.data.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error;
-    }
+    const languages = await this.getUserLanguages();
+    return languages.find((item) => item.isPrimary) || null;
   }
 
   /**
    * Get specific user language
    */
   async getUserLanguage(language: string): Promise<UserLanguage | null> {
-    try {
-      const response = await api.get(`/user-languages/${language}`);
-      return response.data.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error;
-    }
+    return this.findLanguageByCode(language);
   }
 
   /**
@@ -79,21 +69,42 @@ class UserLanguageApi {
    * Update existing language
    */
   async updateUserLanguage(language: string, updates: UpdateUserLanguageRequest): Promise<void> {
-    await api.put(`/user-languages/${language}`, updates);
+    const target = await this.findLanguageByCode(language);
+    if (!target) {
+      throw new Error(`Language not found: ${language}`);
+    }
+
+    await api.put(`/user-languages/${target.id}`, {
+      proficiencyLevel: updates.currentLevel,
+      learningGoal: updates.targetLevel,
+      isPrimary: updates.isPrimary
+    });
   }
 
   /**
    * Remove language
    */
   async removeUserLanguage(language: string): Promise<void> {
-    await api.delete(`/user-languages/${language}`);
+    const target = await this.findLanguageByCode(language);
+    if (!target) {
+      throw new Error(`Language not found: ${language}`);
+    }
+
+    await api.delete(`/user-languages/${target.id}`);
   }
 
   /**
    * Set primary language
    */
   async setPrimaryLanguage(language: string): Promise<void> {
-    await api.post(`/user-languages/${language}/primary`);
+    const target = await this.findLanguageByCode(language);
+    if (!target) {
+      throw new Error(`Language not found: ${language}`);
+    }
+
+    await api.put(`/user-languages/${target.id}`, {
+      isPrimary: true
+    });
   }
 }
 

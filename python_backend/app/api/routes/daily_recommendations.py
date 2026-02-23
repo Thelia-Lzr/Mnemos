@@ -44,7 +44,7 @@ async def get_today_recommendations(
     if not recommendations:
         # 生成今日推荐
         service = get_daily_recommendation_service(db)
-        await service.generate_daily_recommendations(
+        await service.generate_recommendation(
             user_id=str(current_user.id),
             language=language,
         )
@@ -134,7 +134,7 @@ async def generate_recommendations(
     service = get_daily_recommendation_service(db)
 
     try:
-        await service.generate_daily_recommendations(
+        await service.generate_recommendation(
             user_id=str(current_user.id),
             language=language,
         )

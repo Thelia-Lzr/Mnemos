@@ -173,7 +173,7 @@ class ChatApiService {
   // Asynchronous chat methods
   async sendMessageAsync(request: SendMessageRequest): Promise<SendMessageResponse> {
     try {
-      const response = await api.post('/chat/message-async', request);
+      const response = await api.post('/chat/message', request);
       return response.data;
     } catch (error: any) {
       return {
@@ -195,7 +195,7 @@ class ChatApiService {
         }
       });
 
-      const response = await api.post('/chat/upload-material-async', formData, {
+      const response = await api.post('/chat/upload-material', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -278,7 +278,7 @@ class ChatApiService {
 
   async executeFunctionAsync(request: FunctionCallRequest): Promise<FunctionCallResponse> {
     try {
-      const response = await api.post('/chat/function-call-async', request);
+      const response = await api.post('/chat/function-call', request);
       return response.data;
     } catch (error: any) {
       return {
@@ -316,7 +316,7 @@ class ChatApiService {
   // Task management methods
   async getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
     try {
-      const response = await api.get(`/tasks/status/${taskId}`);
+      const response = await api.get(`/tasks/${taskId}/status`);
       return response.data;
     } catch (error: any) {
       return {
@@ -328,7 +328,7 @@ class ChatApiService {
 
   async getTaskResult(taskId: string): Promise<TaskResultResponse> {
     try {
-      const response = await api.get(`/tasks/result/${taskId}`);
+      const response = await api.get(`/tasks/${taskId}/result`);
       return response.data;
     } catch (error: any) {
       return {
@@ -340,7 +340,7 @@ class ChatApiService {
 
   async cancelTask(taskId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await api.post(`/tasks/cancel/${taskId}`);
+      const response = await api.post(`/tasks/${taskId}/cancel`);
       return response.data;
     } catch (error: any) {
       return {

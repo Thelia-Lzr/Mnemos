@@ -43,8 +43,7 @@ import {
   ExpandLess,
   ExpandMore,
   Assignment,
-  TrendingUp,
-  EmojiEvents
+  TrendingUp
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store/store';
@@ -87,8 +86,7 @@ const Layout: React.FC = () => {
       icon: <Dashboard />, 
       path: '/',
       children: [
-        { text: '学习概览', icon: <TrendingUp />, path: '/dashboard' },
-        { text: '成就中心', icon: <EmojiEvents />, path: '/achievements' }
+        { text: '学习概览', icon: <TrendingUp />, path: '/dashboard' }
       ]
     },
     { text: 'AI助手', icon: <Chat />, path: '/chat', badge: 0 },
@@ -126,8 +124,7 @@ const Layout: React.FC = () => {
       'profile': '个人资料',
       'recharge': '充值中心',
       'admin': '管理员',
-      'assessment': '能力评估',
-      'achievements': '成就中心'
+      'assessment': '能力评估'
     };
 
     let currentPath = '';

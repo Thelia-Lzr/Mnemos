@@ -208,8 +208,7 @@ class AssessmentApi {
    * Get reassessment case
    */
   async getReassessmentCase(reassessmentId: string): Promise<ReassessmentCase> {
-    const response = await api.get(`/assessment/reassessment/${reassessmentId}`);
-    return response.data.data;
+    throw new Error('当前后端未提供获取单个 reassessment 的端点');
   }
 
   /**
@@ -220,28 +219,21 @@ class AssessmentApi {
     questionId: string, 
     userAnswer: string
   ): Promise<ReassessmentResponse> {
-    const response = await api.post(`/assessment/reassessment/${reassessmentId}/response`, {
-      questionId,
-      userAnswer
-    });
-    return response.data.data;
+    throw new Error('当前后端未提供提交 reassessment 响应的端点');
   }
 
   /**
    * Cancel reassessment
    */
   async cancelReassessment(reassessmentId: string, reason?: string): Promise<void> {
-    await api.delete(`/assessment/reassessment/${reassessmentId}`, {
-      data: { reason }
-    });
+    throw new Error('当前后端未提供取消 reassessment 的端点');
   }
 
   /**
    * Get reassessment history for a language
    */
   async getReassessmentHistory(language: string): Promise<ReassessmentCase[]> {
-    const response = await api.get(`/assessment/reassessment-history/${language}`);
-    return response.data.data;
+    throw new Error('当前后端未提供 reassessment 历史端点');
   }
 }
 

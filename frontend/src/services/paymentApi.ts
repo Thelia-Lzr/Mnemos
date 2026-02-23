@@ -90,30 +90,32 @@ export const paymentApi = {
 
   // Confirm payment
   confirmPayment: async (data: ConfirmPaymentRequest): Promise<PaymentResult> => {
-    const response = await api.post('/payment/confirm-payment', data);
+    const response = await api.post(`/payment/order/${data.orderId}/confirm`, {
+      payment_method: data.paymentMethod
+    });
     return response.data.data;
   },
 
   // Get order status
   getOrderStatus: async (orderId: string): Promise<PaymentOrder> => {
-    const response = await api.get(`/payment/order-status/${orderId}`);
+    const response = await api.get(`/payment/order/${orderId}/status`);
     return response.data.data;
   },
 
   // Query payment status from gateway
   queryPaymentStatus: async (orderId: string): Promise<PaymentResult> => {
-    const response = await api.get(`/payment/query-status/${orderId}`);
+    const response = await api.get(`/payment/order/${orderId}/status`);
     return response.data.data;
   },
 
   // Cancel order
   cancelOrder: async (orderId: string): Promise<void> => {
-    await api.post(`/payment/cancel-order/${orderId}`);
+    await api.post(`/payment/order/${orderId}/cancel`);
   },
 
   // Retry payment
   retryPayment: async (orderId: string): Promise<PaymentResult> => {
-    const response = await api.post(`/payment/retry-payment/${orderId}`);
+    const response = await api.get(`/payment/order/${orderId}/status`);
     return response.data.data;
   },
 
@@ -124,12 +126,31 @@ export const paymentApi = {
     if (offset) params.append('offset', offset.toString());
     
     const response = await api.get(`/payment/transactions?${params.toString()}`);
-    return response.data.data;
+    const payload = response.data?.data ?? response.data;
+
+    if (payload?.orders && payload?.creditTransactions && payload?.summary) {
+      return payload;
+    }
+
+    const creditTransactions = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.creditTransactions)
+        ? payload.creditTransactions
+        : [];
+
+    return {
+      orders: Array.isArray(payload?.orders) ? payload.orders : [],
+      creditTransactions,
+      summary: {
+        totalOrders: Array.isArray(payload?.orders) ? payload.orders.length : 0,
+        currentBalance: payload?.summary?.currentBalance ?? 0,
+      },
+    };
   },
 
   // Get specific transaction
   getTransaction: async (transactionId: string): Promise<any> => {
-    const response = await api.get(`/payment/transaction/${transactionId}`);
+    const response = await api.get(`/payment/order/${transactionId}`);
     return response.data.data;
   }
 };

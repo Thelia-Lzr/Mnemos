@@ -152,6 +152,24 @@ export interface FollowUpResponse {
 }
 
 class PracticeApi {
+  private mapPracticeTypeToSkillAreas(type?: string): string[] {
+    switch (type) {
+      case 'vocabulary':
+        return ['vocabulary'];
+      case 'grammar':
+        return ['grammar'];
+      case 'comprehensive':
+        return ['vocabulary', 'grammar', 'reading', 'listening'];
+      case 'general':
+      default:
+        return ['reading', 'writing'];
+    }
+  }
+
+  private extractPracticeGroup(responseData: any): PracticeGroup {
+    return (responseData?.data ?? responseData) as PracticeGroup;
+  }
+
   /**
    * Get all practice groups for the current user
    */
@@ -181,8 +199,16 @@ class PracticeApi {
    * Create a new practice group
    */
   async createPracticeGroup(request: CreatePracticeRequest): Promise<PracticeGroup> {
-    const response = await api.post('/practice/generate-group', request);
-    return response.data.data;
+    const response = await api.post('/practice/generate-group', {
+      language: request.language,
+      difficulty: request.difficulty,
+      questionCount: request.count || 10,
+      skillAreas: this.mapPracticeTypeToSkillAreas(request.type),
+      focusAreas: request.focusAreas,
+      title: request.type ? `${request.type} practice` : undefined,
+      description: undefined,
+    });
+    return this.extractPracticeGroup(response.data);
   }
 
   /**
@@ -196,8 +222,25 @@ class PracticeApi {
       parameters: any;
     };
   }> {
-    const response = await api.post('/practice/generate-ai-practice', request);
-    return response.data.data;
+    const response = await api.post('/practice/generate-group', {
+      language: request.language || 'en',
+      difficulty: request.difficulty || 'intermediate',
+      skillAreas: this.mapPracticeTypeToSkillAreas(request.type || 'general'),
+      focusAreas: [request.message],
+      questionCount: 10
+    });
+    const practiceGroup = this.extractPracticeGroup(response.data);
+    return {
+      practiceGroup,
+      aiAnalysis: {
+        detectedIntent: request.type || 'general',
+        confidence: 1,
+        parameters: {
+          language: request.language || 'en',
+          difficulty: request.difficulty || 'intermediate',
+        },
+      },
+    };
   }
 
   /**
@@ -211,8 +254,25 @@ class PracticeApi {
       parameters?: any;
     };
   }> {
-    const response = await api.post('/practice/generate-enhanced-practice', request);
-    return response.data.data;
+    const response = await api.post('/practice/generate-group', {
+      language: request.language,
+      difficulty: request.difficulty,
+      skillAreas: this.mapPracticeTypeToSkillAreas(request.type),
+      focusAreas: request.additionalPrompt ? [request.additionalPrompt] : undefined,
+      questionCount: 10
+    });
+    const practiceGroup = this.extractPracticeGroup(response.data);
+    return {
+      practiceGroup,
+      aiAnalysis: {
+        detectedIntent: request.type,
+        confidence: 1,
+        parameters: {
+          language: request.language,
+          difficulty: request.difficulty,
+        },
+      },
+    };
   }
 
   /**
@@ -222,8 +282,11 @@ class PracticeApi {
     taskId: string;
     message: string;
   }> {
-    const response = await api.post('/practice/generate-enhanced-practice-async', request);
-    return response.data;
+    await this.createEnhancedPracticeGroup(request);
+    return {
+      taskId: 'sync-generated',
+      message: 'Practice group generated synchronously'
+    };
   }
 
   /**
@@ -273,7 +336,12 @@ class PracticeApi {
     includeMilestones?: boolean;
     includeVocabulary?: boolean;
   }): Promise<PracticeGroup> {
-    const response = await api.post('/practice/generate-comprehensive', request);
+    const response = await api.post('/practice/generate-group', {
+      language: request.language,
+      difficulty: 'mixed',
+      type: 'comprehensive',
+      questionCount: 15
+    });
     return response.data.data;
   }
 
@@ -284,7 +352,13 @@ class PracticeApi {
     language: string;
     vocabularyWords: string[];
   }): Promise<PracticeGroup> {
-    const response = await api.post('/practice/vocabulary-group', request);
+    const response = await api.post('/practice/generate-group', {
+      language: request.language,
+      difficulty: 'intermediate',
+      type: 'vocabulary',
+      vocabularyWords: request.vocabularyWords,
+      questionCount: 10
+    });
     return response.data.data;
   }
 
@@ -295,8 +369,11 @@ class PracticeApi {
     taskId: string;
     message: string;
   }> {
-    const response = await api.post('/practice/generate-group-async', request);
-    return response.data;
+    await this.createPracticeGroup(request);
+    return {
+      taskId: 'sync-generated',
+      message: 'Practice group generated synchronously'
+    };
   }
 
   /**
@@ -306,9 +383,11 @@ class PracticeApi {
     taskId: string;
     message: string;
   }> {
-    // Note: This endpoint might not exist yet, but we can add it if needed
-    const response = await api.post('/practice/generate-ai-practice-async', request);
-    return response.data;
+    await this.createAIPracticeGroup(request);
+    return {
+      taskId: 'sync-generated',
+      message: 'AI practice generated synchronously'
+    };
   }
 
   /**
@@ -326,10 +405,12 @@ class PracticeApi {
     message: string;
     deletedCount: number;
   }> {
-    const response = await api.delete('/practice/groups/batch', {
-      data: { practiceGroupIds }
-    });
-    return response.data;
+    await Promise.all(practiceGroupIds.map((id) => this.deletePracticeGroup(id)));
+    return {
+      success: true,
+      message: 'Practice groups deleted',
+      deletedCount: practiceGroupIds.length
+    };
   }
 
   /**
@@ -340,7 +421,7 @@ class PracticeApi {
     message: string;
     deletedCount: number;
   }> {
-    const response = await api.delete('/practice/history/batch', {
+    const response = await api.delete('/practice/history', {
       data: { practiceGroupIds }
     });
     return response.data;
@@ -350,9 +431,7 @@ class PracticeApi {
    * Update user capabilities based on practice results
    */
   async updateCapabilities(practiceResultId: string): Promise<void> {
-    await api.post('/practice/update-capabilities', {
-      practiceResultId
-    });
+    return;
   }
 
   /**
@@ -369,15 +448,7 @@ class PracticeApi {
    * Get existing AI analysis for practice result
    */
   async getPracticeAnalysis(practiceResultId: string): Promise<AIAnalysis | null> {
-    try {
-      const response = await api.get(`/practice/result/${practiceResultId}/analysis`);
-      return response.data.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
-      throw error;
-    }
+    return null;
   }
 
   /**
@@ -388,15 +459,18 @@ class PracticeApi {
     practiceGroup: PracticeGroup;
     userAnswers: Record<string, string>;
   }> {
-    const response = await api.get(`/practice/result/${practiceResultId}/detail`);
-    return response.data.data;
+    throw new Error('当前后端未提供练习结果详情端点');
   }
 
   /**
    * Ask follow-up question about a specific question
    */
   async askQuestionFollowUp(request: QuestionFollowUpRequest): Promise<FollowUpResponse> {
-    const response = await api.post('/practice/question/followup', request);
+    const response = await api.post('/practice/followup', {
+      question: request.followUpQuestion,
+      userAnswer: request.userAnswer,
+      practiceGroupId: request.questionId
+    });
     return response.data.data;
   }
 
@@ -404,7 +478,10 @@ class PracticeApi {
    * Ask follow-up question about the entire practice group
    */
   async askPracticeGroupFollowUp(request: PracticeGroupFollowUpRequest): Promise<FollowUpResponse> {
-    const response = await api.post('/practice/group/followup', request);
+    const response = await api.post('/practice/followup', {
+      question: request.followUpQuestion,
+      practiceGroupId: request.practiceGroupId
+    });
     return response.data.data;
   }
 
@@ -427,56 +504,10 @@ class PracticeApi {
         throw new Error('用户未登录，请重新登录');
       }
 
-      const response = await fetch(`${api.defaults.baseURL}/practice/question/followup/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('登录已过期，请刷新页面重新登录');
-        }
-        throw new Error(`请求失败: ${response.status} ${response.statusText}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'credit_cost') {
-                onCreditCost(data.creditCost);
-              } else if (data.type === 'content') {
-                onChunk(data.content);
-              } else if (data.type === 'end') {
-                onEnd();
-                return;
-              }
-            } catch (e) {
-              console.warn('Failed to parse streaming data:', line);
-            }
-          }
-        }
-      }
+      const data = await this.askQuestionFollowUp(request);
+      onCreditCost(data.creditCost || 0);
+      onChunk(data.answer || '');
+      onEnd();
     } catch (error) {
       onError(error instanceof Error ? error : new Error('Unknown streaming error'));
     }
@@ -501,56 +532,10 @@ class PracticeApi {
         throw new Error('用户未登录，请重新登录');
       }
 
-      const response = await fetch(`${api.defaults.baseURL}/practice/group/followup/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('登录已过期，请刷新页面重新登录');
-        }
-        throw new Error(`请求失败: ${response.status} ${response.statusText}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'credit_cost') {
-                onCreditCost(data.creditCost);
-              } else if (data.type === 'content') {
-                onChunk(data.content);
-              } else if (data.type === 'end') {
-                onEnd();
-                return;
-              }
-            } catch (e) {
-              console.warn('Failed to parse streaming data:', line);
-            }
-          }
-        }
-      }
+      const data = await this.askPracticeGroupFollowUp(request);
+      onCreditCost(data.creditCost || 0);
+      onChunk(data.answer || '');
+      onEnd();
     } catch (error) {
       onError(error instanceof Error ? error : new Error('Unknown streaming error'));
     }

@@ -101,17 +101,23 @@ class DailyRecommendationService:
             date=target,
         )
 
-        response = await self.openrouter.call_ai(
-            model=model,
-            prompt=prompt,
-            user_id=user_id,
-        )
-
-        # 解析 AI 响应
         try:
-            recommendation_data = json.loads(response["content"])
-        except json.JSONDecodeError:
-            recommendation_data = {}
+            response = await self.openrouter.call_ai(
+                model=model,
+                prompt=prompt,
+                user_id=user_id,
+            )
+
+            # 解析 AI 响应
+            try:
+                recommendation_data = json.loads(response["content"])
+            except json.JSONDecodeError:
+                recommendation_data = {}
+        except Exception:
+            recommendation_data = self._build_fallback_recommendation(
+                review_words=review_words,
+                level=capability.current_level if capability else "A1",
+            )
 
         # 创建推荐记录
         recommendation = DailyLearningRecommendation(
@@ -275,6 +281,42 @@ class DailyRecommendationService:
     ]
 }}
 """
+
+    def _build_fallback_recommendation(
+        self,
+        review_words: List[VocabularyWord],
+        level: str,
+    ) -> Dict[str, Any]:
+        review_count = min(max(len(review_words), 5), 20)
+
+        return {
+            "review_items": [
+                {"type": "vocabulary", "count": review_count, "description": "复习高频词汇"}
+            ],
+            "new_learning": [
+                {"type": "grammar", "topic": f"{level} 级语法巩固", "estimated_time": 15}
+            ],
+            "practice_suggestions": [
+                "完成 1 组词汇回顾",
+                "完成 1 组语法练习",
+            ],
+            "quick_practice_options": [
+                {
+                    "id": "fallback_vocab",
+                    "title": "快速词汇练习",
+                    "type": "vocabulary",
+                    "duration_minutes": 5,
+                    "description": "复习词汇与拼写",
+                },
+                {
+                    "id": "fallback_grammar",
+                    "title": "语法小测",
+                    "type": "grammar",
+                    "duration_minutes": 10,
+                    "description": "巩固核心语法点",
+                },
+            ],
+        }
 
 
 def get_daily_recommendation_service(db: AsyncSession) -> DailyRecommendationService:

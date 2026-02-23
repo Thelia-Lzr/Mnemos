@@ -28,7 +28,6 @@ import {
   Storage as StorageIcon,
   Speed as SpeedIcon
 } from '@mui/icons-material';
-import SecurityUtils from '../../utils/security';
 import api from '../../services/api';
 
 interface RevenueStats {
@@ -117,37 +116,39 @@ const SystemStats: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch all statistics in parallel using the configured axios instance
-      const [revenueRes, userRes, usageRes, creditRes, queueRes] = await Promise.all([
-        api.get(`/admin/revenue-stats?days=${revenuePeriod}`),
-        api.get('/admin/user-stats'),
-        api.get(`/admin/usage-stats?days=${usagePeriod}`),
-        api.get('/admin/credit-statistics'),
-        api.get('/admin/queue-metrics')
-      ]);
+      const statisticsRes = await api.get('/admin/statistics');
 
-      if (revenueRes.data.success) {
-        setRevenueStats(revenueRes.data.data);
+      if (statisticsRes.data?.success) {
+        const stats = statisticsRes.data.data ?? {};
+
+        setRevenueStats({
+          totalRevenue: stats.totalRevenue ?? 0,
+          dailyRevenue: 0,
+          weeklyRevenue: 0,
+          monthlyRevenue: 0,
+          packageSales: [],
+        });
+
+        setUserStats({
+          totalUsers: stats.totalUsers ?? 0,
+          activeUsers: stats.activeUsers ?? 0,
+          newUsersToday: 0,
+          newUsersThisWeek: 0,
+          newUsersThisMonth: 0,
+          usersByLanguage: {},
+          usersByLevel: {},
+          dailyActiveUsers: 0,
+          weeklyActiveUsers: 0,
+          monthlyActiveUsers: 0,
+        });
       }
 
-      if (userRes.data.success) {
-        setUserStats(userRes.data.data);
-      }
+      setCreditStats(null);
 
-      if (usageRes.data.success) {
-        setUsageStats(usageRes.data.data);
-      }
-
-      if (creditRes.data.success) {
-        setCreditStats(creditRes.data.data);
-      }
-
-      if (queueRes.data.success) {
-        setQueueMetrics(queueRes.data.data);
-      }
+      setUsageStats(null);
+      setQueueMetrics(null);
 
     } catch (error) {
-      console.error('Failed to fetch statistics:', error);
       setError('Failed to load system statistics');
     } finally {
       setLoading(false);

@@ -1,10 +1,10 @@
 """
 监控路由
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from typing import Optional
+from sqlalchemy import select, func, text
+from typing import Optional, Dict, Any, List
 import psutil
 import time
 
@@ -15,29 +15,178 @@ from app.models.user import User
 
 router = APIRouter(prefix="/api/monitoring", tags=["监控"])
 
+_RESOLVED_ALERT_IDS: set[str] = set()
+
+
+async def _get_active_connections(db: AsyncSession) -> int:
+    try:
+        result = await db.execute(text("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()"))
+        return int(result.scalar() or 0)
+    except Exception:
+        return 0
+
+
+def _to_service_status(service_data: Dict[str, Any], fallback_name: str, response_time: float) -> Dict[str, Any]:
+    healthy = service_data.get("healthy")
+    if healthy is True:
+        status_value = "healthy"
+        message = f"{fallback_name} service is healthy"
+    elif healthy is False:
+        status_value = "critical"
+        message = service_data.get("error") or service_data.get("message") or f"{fallback_name} service check failed"
+    else:
+        status_value = "degraded"
+        message = service_data.get("message") or f"{fallback_name} status is degraded"
+
+    return {
+        "status": status_value,
+        "message": message,
+        "lastCheck": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "responseTime": response_time,
+    }
+
+
+async def _build_monitoring_snapshot(db: AsyncSession) -> Dict[str, Any]:
+    db_start = time.perf_counter()
+    db_status = await db_health()
+    db_response_time = round((time.perf_counter() - db_start) * 1000, 2)
+
+    redis_start = time.perf_counter()
+    redis_status = await redis_health_check()
+    redis_response_time = round((time.perf_counter() - redis_start) * 1000, 2)
+
+    cpu_percent = float(psutil.cpu_percent(interval=0.1))
+    memory = psutil.virtual_memory()
+    active_connections = await _get_active_connections(db)
+
+    db_service = _to_service_status(db_status, "Database", db_response_time)
+    redis_service = _to_service_status(redis_status, "Redis", redis_response_time)
+
+    memory_status = "critical" if memory.percent >= 90 else "degraded" if memory.percent >= 80 else "healthy"
+    cpu_status = "critical" if cpu_percent >= 90 else "degraded" if cpu_percent >= 80 else "healthy"
+
+    services = {
+        "database": db_service,
+        "redis": redis_service,
+        "memory": {
+            "status": memory_status,
+            "message": f"Memory usage at {memory.percent:.1f}%",
+            "lastCheck": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "responseTime": None,
+        },
+        "cpu": {
+            "status": cpu_status,
+            "message": f"CPU usage at {cpu_percent:.1f}%",
+            "lastCheck": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "responseTime": None,
+        },
+    }
+
+    status_candidates = [services["database"]["status"], services["redis"]["status"], memory_status, cpu_status]
+    if "critical" in status_candidates:
+        overall_status = "critical"
+    elif "degraded" in status_candidates:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
+
+    response_time_candidates = [
+        value for value in [db_service.get("responseTime"), redis_service.get("responseTime")] if isinstance(value, (int, float))
+    ]
+    response_time = float(sum(response_time_candidates) / len(response_time_candidates)) if response_time_candidates else 0.0
+
+    error_sources = [services["database"]["status"], services["redis"]["status"]]
+    error_rate = (sum(1 for status_value in error_sources if status_value != "healthy") / max(len(error_sources), 1)) * 100.0
+
+    return {
+        "status": overall_status,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "uptime": int(time.time() - psutil.boot_time()),
+        "services": services,
+        "metrics": {
+            "activeConnections": active_connections,
+            "memoryUsage": float(memory.percent),
+            "cpuUsage": float(cpu_percent),
+            "responseTime": float(response_time),
+            "errorRate": float(error_rate),
+        },
+    }
+
+
+def _build_alerts(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
+    alerts: List[Dict[str, Any]] = []
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    metrics = snapshot["metrics"]
+    services = snapshot["services"]
+
+    for service_name, service_data in services.items():
+        if service_data["status"] != "healthy":
+            severity = "error" if service_data["status"] == "critical" else "warning"
+            alert_id = f"service-{service_name}-{service_data['status']}"
+            alerts.append({
+                "id": alert_id,
+                "type": severity,
+                "service": service_name,
+                "message": service_data.get("message", f"{service_name} is not healthy"),
+                "timestamp": now_iso,
+                "resolved": alert_id in _RESOLVED_ALERT_IDS,
+                "metadata": {
+                    "status": service_data["status"],
+                    "lastCheck": service_data.get("lastCheck"),
+                },
+            })
+
+    if metrics["memoryUsage"] >= 80:
+        alert_id = "metric-memory-high"
+        alerts.append({
+            "id": alert_id,
+            "type": "error" if metrics["memoryUsage"] >= 90 else "warning",
+            "service": "memory",
+            "message": f"Memory usage is high ({metrics['memoryUsage']:.1f}%)",
+            "timestamp": now_iso,
+            "resolved": alert_id in _RESOLVED_ALERT_IDS,
+            "metadata": {"usage": metrics["memoryUsage"]},
+        })
+
+    if metrics["cpuUsage"] >= 80:
+        alert_id = "metric-cpu-high"
+        alerts.append({
+            "id": alert_id,
+            "type": "error" if metrics["cpuUsage"] >= 90 else "warning",
+            "service": "cpu",
+            "message": f"CPU usage is high ({metrics['cpuUsage']:.1f}%)",
+            "timestamp": now_iso,
+            "resolved": alert_id in _RESOLVED_ALERT_IDS,
+            "metadata": {"usage": metrics["cpuUsage"]},
+        })
+
+    if not alerts:
+        alert_id = "system-healthy-info"
+        alerts.append({
+            "id": alert_id,
+            "type": "info",
+            "service": "system",
+            "message": "All monitored services are healthy",
+            "timestamp": now_iso,
+            "resolved": False,
+            "metadata": {"status": snapshot["status"]},
+        })
+
+    return alerts
+
 
 @router.get("/health")
 async def health_endpoint(
     *,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """健康检查"""
-    db_status = await db_health()
-    redis_status = await redis_health_check()
-
-    overall_status = "healthy"
-    if not db_status.get("healthy"):
-        overall_status = "degraded"
-    if not redis_status.get("healthy"):
-        overall_status = "degraded"
-
+    snapshot = await _build_monitoring_snapshot(db)
     return {
-        "status": overall_status,
-        "timestamp": time.time(),
-        "services": {
-            "database": db_status,
-            "redis": redis_status,
-        },
+        "success": True,
+        "data": snapshot,
     }
 
 
@@ -82,16 +231,21 @@ async def get_metrics(
 @router.get("/alerts")
 async def get_alerts(
     *,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200),
     current_user: User = Depends(require_admin),
 ):
     """获取警报列表"""
-    # TODO: 实现警报系统
+    snapshot = await _build_monitoring_snapshot(db)
+    alerts = _build_alerts(snapshot)
+
+    unresolved = [a for a in alerts if not a["resolved"]]
+    resolved = [a for a in alerts if a["resolved"]]
+    ordered_alerts = unresolved + resolved
+
     return {
         "success": True,
-        "data": {
-            "alerts": [],
-            "totalCount": 0,
-        },
+        "data": ordered_alerts[:limit],
     }
 
 
@@ -102,7 +256,7 @@ async def resolve_alert(
     current_user: User = Depends(require_admin),
 ):
     """解决警报"""
-    # TODO: 实现警报解决逻辑
+    _RESOLVED_ALERT_IDS.add(alert_id)
     return {
         "success": True,
         "message": f"Alert {alert_id} resolved",

@@ -17,7 +17,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { setMatching, setMatchingTaskId, setError } from '../../store/slices/pkSlice';
-import SecurityUtils from '../../utils/security';
+import api from '../../services/api';
 
 interface PKMatchingInterfaceProps {
   language: string;
@@ -59,18 +59,10 @@ const PKMatchingInterface: React.FC<PKMatchingInterfaceProps> = ({
 
   const fetchMatchingStats = async () => {
     try {
-      const response = await fetch(`/api/pk/matching-stats?language=${language}`, {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMatchingStats(data.data);
-      }
+      const response = await api.get('/pk/stats', { params: { language } });
+      setMatchingStats(response.data?.data ?? response.data ?? null);
     } catch (error) {
-      console.error('Error fetching matching stats:', error);
+      setMatchingStats(null);
     }
   };
 
@@ -79,29 +71,19 @@ const PKMatchingInterface: React.FC<PKMatchingInterfaceProps> = ({
       dispatch(setError(null));
       dispatch(setMatching(true));
       
-      const response = await fetch('/api/pk/find-match', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
-        body: JSON.stringify({ language }),
-      });
+      const response = await api.post('/pk/find-match', { language });
+      const data = response.data?.data ?? response.data;
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        if (data.data.status === 'matched') {
+      if (data) {
+        if (data.status === 'matched') {
           // 立即找到匹配
           dispatch(setMatching(false));
-          onMatchFound(data.data.matchId);
+          onMatchFound(data.matchId);
         } else {
           // 继续等待匹配
-          dispatch(setMatchingTaskId(data.data.id));
+          dispatch(setMatchingTaskId(data.id));
           setEstimatedWaitTime(300); // 默认5分钟
         }
-      } else {
-        throw new Error(data.error || 'Failed to start matching');
       }
     } catch (error) {
       dispatch(setError(error instanceof Error ? error.message : 'Unknown error'));
@@ -113,46 +95,31 @@ const PKMatchingInterface: React.FC<PKMatchingInterfaceProps> = ({
     if (!isMatching) return;
 
     try {
-      const response = await fetch(`/api/pk/match-status?language=${language}`, {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
-      });
+      const response = await api.get('/pk/match-status', { params: { language } });
+      const data = response.data?.data ?? response.data;
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        if (data.data.battle) {
+      if (data) {
+        if (data.battle) {
           // 找到匹配
           dispatch(setMatching(false));
-          onMatchFound(data.data.battle.id);
-        } else if (data.data.estimatedWaitTime) {
-          setEstimatedWaitTime(data.data.estimatedWaitTime);
+          onMatchFound(data.battle.id);
+        } else if (data.estimatedWaitTime) {
+          setEstimatedWaitTime(data.estimatedWaitTime);
         }
       }
     } catch (error) {
-      console.error('Error checking match status:', error);
+      // ignore polling failures and keep current matching state
     }
   };
 
   const cancelMatching = async () => {
     try {
-      const response = await fetch('/api/pk/cancel-match', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
-        body: JSON.stringify({ language }),
-      });
-
-      if (response.ok) {
-        dispatch(setMatching(false));
-        dispatch(setMatchingTaskId(null));
-        setShowCancelDialog(false);
-      }
+      await api.post('/pk/cancel-match', { language });
+      dispatch(setMatching(false));
+      dispatch(setMatchingTaskId(null));
+      setShowCancelDialog(false);
     } catch (error) {
-      console.error('Error cancelling match:', error);
+      dispatch(setError(error instanceof Error ? error.message : 'Failed to cancel matching'));
     }
   };
 

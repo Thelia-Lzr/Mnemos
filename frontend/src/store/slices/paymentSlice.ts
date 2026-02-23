@@ -170,7 +170,8 @@ const paymentSlice = createSlice({
       .addCase(fetchTransactions.fulfilled, (state, action) => {
         state.loading = false;
         state.transactions = action.payload;
-        state.creditBalance = action.payload.summary.currentBalance;
+        const summary = action.payload?.summary;
+        state.creditBalance = summary?.currentBalance ?? 0;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.loading = false;

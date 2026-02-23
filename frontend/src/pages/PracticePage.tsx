@@ -208,28 +208,17 @@ const PracticePage: React.FC = () => {
   const handleCreateEnhancedPractice = async () => {
     try {
       setGenerating(true);
-      
-      // Use async enhanced practice generation
-      const result = await practiceApi.createEnhancedPracticeGroupAsync({
+
+      const result = await practiceApi.createEnhancedPracticeGroup({
         language: newPracticeForm.language,
         type: newPracticeForm.type,
         difficulty: newPracticeForm.difficulty,
         additionalPrompt: additionalPrompt.trim() || undefined
       });
-      
-      // Create a placeholder practice group for "generating" state
-      const placeholderTitle = additionalPrompt.trim() 
-        ? `${getTypeDisplayName(newPracticeForm.type)} - ${additionalPrompt.trim().substring(0, 20)}...`
-        : `${getTypeDisplayName(newPracticeForm.type)} - ${getLanguageDisplayName(newPracticeForm.language)}`;
-      
-      // Add to generating practices map
-      setGeneratingPractices(prev => new Map(prev.set(result.taskId, {
-        taskId: result.taskId,
-        title: placeholderTitle,
-        language: newPracticeForm.language,
-        difficulty: newPracticeForm.difficulty,
-        type: newPracticeForm.type
-      })));
+
+      if (result.practiceGroup) {
+        setPracticeGroups(prev => [result.practiceGroup, ...prev]);
+      }
       
       // Close dialog and reset form
       setShowCreateDialog(false);
@@ -242,7 +231,7 @@ const PracticePage: React.FC = () => {
       setAdditionalPrompt('');
       
       // Show success message
-      ErrorHandler.showSuccess(result.message);
+      ErrorHandler.showSuccess('练习生成完成');
       
     } catch (err) {
       const errorMessage = ErrorHandler.getErrorMessage(err);

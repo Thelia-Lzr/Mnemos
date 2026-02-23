@@ -2,7 +2,12 @@ import axios from 'axios';
 import ErrorHandler from '../utils/errorHandler';
 import SecurityUtils from '../utils/security';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const resolveApiBaseUrl = () => {
+  const raw = (process.env.REACT_APP_API_URL || 'http://localhost:8000/api').trim();
+  return raw.endsWith('/api') ? raw : `${raw}/api`;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -119,11 +124,12 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refreshToken
+            refresh_token: refreshToken
           });
 
-          if (response.data.success) {
-            const { token } = response.data;
+          const token = response.data.token || response.data.access_token;
+
+          if (token) {
             SecurityUtils.setSecureItem('token', token);
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             originalRequest.headers.Authorization = `Bearer ${token}`;
