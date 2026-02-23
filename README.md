@@ -1,4 +1,4 @@
-# 🌍 Language Helper - AI Language Learning Application
+# 🌍 Mnemos- AI Language Learning Application
 
 <div align="center">
 
