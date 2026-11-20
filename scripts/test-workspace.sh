@@ -7,11 +7,13 @@ python_bin="${MNEMOS_PYTHON:-$repo_dir/python_backend/.venv/bin/python}"
 postgres_container=
 redis_container=
 api_pid=
+worker_pid=
 log_file="$(mktemp)"
 
 cleanup() {
   local result=$?
   if [[ $result != 0 ]]; then tail -80 "$log_file" >&2; fi
+  if [[ -n $worker_pid ]]; then kill "$worker_pid" 2>/dev/null || true; fi
   if [[ -n $api_pid ]]; then kill "$api_pid" 2>/dev/null || true; fi
   if [[ -n $redis_container ]]; then docker stop "$redis_container" >/dev/null 2>&1 || true; fi
   if [[ -n $postgres_container ]]; then docker stop "$postgres_container" >/dev/null 2>&1 || true; fi
@@ -99,6 +101,23 @@ api_pid=$!
 
 for attempt in {1..30}; do
   if curl -fsS "$MNEMOS_TEST_API_URL/health" 2>/dev/null | "$python_bin" -c 'import json, sys; sys.exit(json.load(sys.stdin)["status"] != "healthy")' 2>/dev/null; then
+    (
+      cd python_backend
+      exec "$python_bin" -m celery -A app.tasks.celery_app worker --pool=solo --concurrency=1 --loglevel=WARNING
+    ) >>"$log_file" 2>&1 &
+    worker_pid=$!
+    (
+      cd python_backend
+      "$python_bin" - <<'PYTHON'
+from app.tasks.celery_app import debug_task
+
+result = debug_task.delay()
+if result.get(timeout=20) != "Debug task completed":
+    raise RuntimeError("Celery task did not return the expected result")
+result.forget()
+print("Celery task round trip verified.")
+PYTHON
+    )
     npx playwright test tests/workspace-live.spec.ts --project=chromium --workers=1 --retries=0 "$@"
     exit
   fi
