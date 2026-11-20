@@ -110,7 +110,9 @@ test.describe('真实工作台与本地模拟模型', () => {
     await expect(dialog).toBeHidden();
     await page.goto('/assessment');
     await expect(page.getByText('当前水平 B1')).toBeVisible();
-    await expect(page.getByText('综合评估及重新评估暂未开放。', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: '用练习记录评估' }).click();
+    await expect(page.getByText('该语言还没有已完成的练习。可以先做本地自测。')).toBeVisible();
+    await expect(page.getByRole('button', { name: '开始或继续自测' })).toBeEnabled();
     await page.goto('/');
     await expect(page.getByRole('heading', { name: '今日学习建议' })).toBeVisible();
     await page.getByRole('button', { name: '提供反馈' }).click();
@@ -125,6 +127,54 @@ test.describe('真实工作台与本地模拟模型', () => {
     await page.getByRole('link', { name: /前往出题/ }).first().click();
     await expect(dialog.getByRole('combobox', { name: '语言', exact: true })).toHaveText('法语');
     await dialog.getByRole('button', { name: '取消' }).click();
+  });
+
+  test('移动端自测可以续答、交卷、回看逐题讲解并重新自测', async ({ page, request }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/assessment?language=fr');
+    await page.getByRole('button', { name: '开始或继续自测' }).click();
+    await expect(page.getByRole('heading', { name: '法语本地自测' })).toBeVisible();
+    const testId = new URL(page.url()).searchParams.get('test')!;
+    const reopen = await request.post(`${api}/api/assessment/reassessment`, { data: { language: 'fr' } });
+    const reopened = (await reopen.json()).data;
+    expect(reopened.id).toBe(testId);
+    expect(reopened.questions).toHaveLength(6);
+    expect(await reopen.text()).not.toContain('correctIndex');
+    expect(await reopen.text()).not.toContain('explanation');
+    const invalid = await request.post(`${api}/api/assessment/reassessment/${testId}/submit`, {
+      data: { answers: { [reopened.questions[0].id]: 9 } },
+    });
+    expect(invalid.status()).toBe(422);
+    await expect(page.getByRole('button', { name: '下一题' })).toBeDisabled();
+    await page.getByRole('radio', { name: 'suis', exact: true }).check();
+    await page.getByRole('button', { name: '稍后继续' }).click();
+    await page.getByRole('button', { name: '开始或继续自测' }).click();
+    await expect(page.getByText('第 2 / 6 题 · 已答 1 题')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('第 2 / 6 题 · 已答 1 题')).toBeVisible();
+    for (const [index, option] of [
+      'Non, il est fermé.', 'lirai', 'Prendre le train suivant.', 'soient', 'La reconduction exige un nouvel examen.',
+    ].entries()) {
+      await page.getByRole('radio', { name: option, exact: true }).check();
+      await page.getByRole('button', { name: index === 4 ? '交卷并评分' : '下一题' }).click();
+    }
+    const report = page.getByRole('region', { name: '评估报告' });
+    await expect(report.getByText('参考难度 · 基础')).toBeVisible();
+    await expect(report.getByText('5 / 6 题答对')).toBeVisible();
+    await report.getByRole('button', { name: /待复习.*Si j’avais/ }).click();
+    await expect(report.getByText('你的答案 · lirai')).toBeVisible();
+    await expect(report.getByText('正确答案 · lirais')).toBeVisible();
+
+    const replay = await request.post(`${api}/api/assessment/reassessment/${testId}/submit`, {
+      data: { answers: { [reopened.questions[0].id]: 0 } },
+    });
+    expect((await replay.json()).data).toMatchObject({ id: testId, correct: 5, total: 6 });
+    await page.reload();
+    await expect(page.getByRole('region', { name: '评估历史' }).getByText('本地自测 · 基础')).toBeVisible();
+    await page.getByRole('button', { name: '开始或继续自测' }).click();
+    await expect(page.getByRole('heading', { name: 'Nous ___ deux cafés, s’il vous plaît.' })).toBeVisible();
+    expect(new URL(page.url()).searchParams.get('test')).not.toBe(testId);
+    expect(await page.locator('main').evaluate((main) => main.scrollWidth)).toBeLessThanOrEqual(390);
   });
 
   test('对话、UTF-8 材料和历史刷新，主服务失败后回退', async ({ page }) => {
@@ -157,7 +207,7 @@ test.describe('真实工作台与本地模拟模型', () => {
     await expect(page.getByText(conversationPrompt, { exact: true })).toHaveCount(0);
   });
 
-  test('生成练习、重新打开试题、答题、查看历史和保存 AI 分析', async ({ page }) => {
+  test('生成练习、重新打开试题、答题、查看历史和保存 AI 分析', async ({ page, request }) => {
     await page.goto('/practice');
     await page.getByRole('button', { name: '创建练习' }).first().click();
     const dialog = page.getByRole('dialog');
@@ -192,6 +242,35 @@ test.describe('真实工作台与本地模拟模型', () => {
     await expect(page.getByRole('heading', { name: 'AI学习分析报告' })).toBeVisible();
     await page.goto('/');
     await expect(page.getByText('已完成 1 次练习')).toBeVisible();
+    await page.goto('/assessment?language=fr');
+    await page.getByRole('button', { name: '用练习记录评估' }).click();
+    const assessment = page.getByRole('region', { name: '评估报告' });
+    await expect(assessment.getByText('参考难度 · 待确认')).toBeVisible();
+    await expect(assessment.getByRole('heading', { name: '采用的练习记录' })).toBeVisible();
+    const reportResults = await Promise.all([1, 2].map(() => request.post(`${api}/api/assessment/comprehensive`, {
+      data: { language: 'fr' },
+    })));
+    const [firstReport, secondReport] = await Promise.all(reportResults.map(async (response) => (await response.json()).data));
+    expect(firstReport).toMatchObject({ source: 'practice', total: 2, correct: 2, band: null });
+    expect(firstReport.practice).toHaveLength(1);
+    expect(secondReport.id).toBe(firstReport.id);
+    const newestPractice = await request.get(`${api}/api/practice/history?limit=1`);
+    const [{ practiceGroupId }] = (await newestPractice.json()).data;
+    const exercise = await request.get(`${api}/api/practice/group/${practiceGroupId}`);
+    const { questions } = await exercise.json();
+    const secondAttempt = await request.post(`${api}/api/practice/group/${practiceGroupId}/submit`, {
+      data: { totalTime: 3000, answers: questions.map(({ id }: { id: string }) => ({
+        questionId: id, userAnswer: 'incorrect', timeSpent: 1500, attempts: 1,
+      })) },
+    });
+    await expect(secondAttempt).toBeOK();
+    const updatedReport = await request.post(`${api}/api/assessment/comprehensive`, { data: { language: 'fr' } });
+    const updated = (await updatedReport.json()).data;
+    expect(updated).toMatchObject({ correct: 0, total: 2 });
+    expect(updated.practice).toHaveLength(1);
+    expect(updated.id).not.toBe(firstReport.id);
+
+
     await page.goto('/practice-history');
     await expect(page.getByRole('button', { name: '查看完整结算' })).toBeVisible();
     await page.getByRole('button', { name: '批量管理' }).click();

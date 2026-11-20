@@ -18,7 +18,21 @@ flowchart LR
 
 在正常开发入口下，FastAPI 监听 `127.0.0.1`。浏览器导航直接进入工作台，业务路由通过 `get_workspace_user` 获取本地资料。Alembic 创建单行 `workspace_settings`，保存固定资料 ID。唯一旧资料直接关联，其他情况创建新资料，旧记录及外键保留。配置 `WORKSPACE_USER_ID` 可按 UUID 使用另一份已有资料。
 
-开源工作台已移除支付和积分计费的页面、业务服务及 API。旧版相关数据表继续由原迁移维护。能力评估及 PK 页面提供已有记录浏览。
+开源工作台已移除支付和积分计费的页面、业务服务及 API。旧版相关数据表继续由原迁移维护。旧版 PK 对战和排行榜提供只读查阅。
+
+## 本地能力评估
+
+```text
+POST /api/assessment/comprehensive
+GET  /api/assessment/history/{language}
+POST /api/assessment/reassessment
+GET  /api/assessment/reassessment/{test_id}
+POST /api/assessment/reassessment/{test_id}/submit
+```
+
+练习报告使用同一语言最近完成的练习组及每组最后一次成绩，以答题数和正确题数计算各档正确率。相同的一组完成记录返回同一份报告。自测每套六题，两套题轮换，选项顺序在开始时打乱。未交卷时接口只提供题干与选项，浏览器保存作答草稿。交卷在服务端评分，并保存逐题讲解和独立报告。
+
+评估记录通过 Alembic 创建，按本地资料和语言读取。已有学习资料、练习和能力数据沿用原表。
 
 ## 组件和接口
 
@@ -33,7 +47,7 @@ interface PageComponents {
   ChatPage: React.FC          // AI聊天学习界面
   PracticePage: React.FC      // 练习管理页面
   VocabularyPage: React.FC    // 生词表管理
-  PKArenaPage: React.FC       // PK对战界面
+  PKArenaPage: React.FC       // 查阅旧版对战记录
   ProfilePage: React.FC       // 用户资料和设置
   AdminPage: React.FC         // 管理员控制台
 }
@@ -122,12 +136,6 @@ interface LearningAPI {
   POST /api/chat/parse-intent
   GET  /api/chat/available-functions
   
-  // 水平评估
-  GET  /api/assessment/current-level
-  POST /api/assessment/request-reevaluation
-  POST /api/assessment/request-reevaluation-async
-  GET  /api/assessment/history
-  
   // 每日学习建议
   GET  /api/daily-recommendation
   POST /api/daily-recommendation/generate-async
@@ -177,20 +185,12 @@ interface VocabularyAPI {
 }
 ```
 
-#### PK对战API
-```typescript
-interface PKApi {
-  // 匹配系统
-  POST /api/pk/find-match
-  GET  /api/pk/match-status
-  POST /api/pk/cancel-match
-  
-  // 对战管理
-  GET  /api/pk/battle/:id
-  POST /api/pk/battle/:id/answer
-  GET  /api/pk/history
-  GET  /api/pk/mmr-ranking
-}
+#### 旧版对战记录接口
+
+```text
+GET /api/pk/history
+GET /api/pk/leaderboard/{language}
+GET /api/pk/stats
 ```
 
 #### 充值支付API
@@ -310,7 +310,6 @@ enum UserIntent {
   REMOVE_VOCABULARY = "remove_vocabulary",
   
   // PK对战
-  START_PK_MATCH = "start_pk_match",
   VIEW_PK_HISTORY = "view_pk_history",
   CHECK_MMR = "check_mmr",
   
@@ -590,7 +589,6 @@ interface NotificationSettings {
   push: boolean
   reviewReminders: boolean
   milestoneUpdates: boolean
-  pkInvitations: boolean
 }
 
 enum Language {
@@ -1202,8 +1200,6 @@ enum TransactionType {
   PURCHASE = "purchase",          // 购买
   CHAT = "chat",                 // 聊天消费
   PRACTICE = "practice",         // 练习消费
-  PK_ENTRY = "pk_entry",         // PK参与费
-  PK_REWARD = "pk_reward",       // PK奖励
   REFUND = "refund",             // 退款
   ADMIN_ADJUST = "admin_adjust"   // 管理员调整
 }
@@ -1425,10 +1421,6 @@ interface RevenueTrendPoint {
 *对于任何*功能使用，系统应该按照预设费率准确扣除相应的credits
 **验证: 需求 12.1, 12.4**
 
-### 属性 8: PK胜负判定公平性
-*对于任何*PK对战结果，胜负判定应该优先基于正确答题数，其次基于用时
-**验证: 需求 13.5**
-
 ### 属性 9: 词汇自动管理一致性
 *对于任何*上传的学习材料，系统应该自动提取词汇并添加到用户生词表
 **验证: 需求 14.1**
@@ -1502,7 +1494,6 @@ interface RevenueTrendPoint {
 ### 数据一致性错误
 - **并发操作冲突** - 使用乐观锁或悲观锁处理并发更新
 - **Credit余额不足** - 在操作前验证余额，操作失败时回滚
-- **PK匹配超时** - 设置匹配超时机制，自动取消长时间未匹配的请求
 
 ### 用户输入错误
 - **文件格式不支持** - 提供清晰的支持格式说明和错误提示
@@ -1562,12 +1553,6 @@ interface RevenueTrendPoint {
 **Credit系统属性测试：**
 - 生成随机操作序列，验证余额计算的准确性
 - 测试并发操作下的数据一致性
-- 验证PK奖励分配的公平性
-
-**PK对战属性测试：**
-- 生成随机对战结果，验证胜负判定规则
-- 测试MMR计算的数学正确性
-- 验证匹配算法的公平性
 
 **充值支付属性测试：**
 - 生成随机支付订单，验证credit增加的准确性
@@ -1624,7 +1609,6 @@ interface RevenueTrendPoint {
 **端到端用户流程测试：**
 - 启动工作台到学习的流程
 - AI聊天到练习生成的完整链路
-- PK匹配到对战结束的全流程
 
 **第三方服务集成测试：**
 - Responses API 与本机 CLI 的成功、失败和空响应场景

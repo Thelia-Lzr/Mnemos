@@ -26,7 +26,7 @@ from app.models.pk import PKBattle, BattleAnswer, MatchRequest, UserMMR, MMRHist
 from app.models.payment import RechargePackage, PaymentOrder, UserCredit, CreditTransaction
 from app.models.task import AsyncTask
 from app.models.recommendation import DailyLearningRecommendation
-# from app.models.assessment import CapabilityAssessment, ReassessmentCase
+from app.models.assessment import AssessmentRecord
 
 target_metadata = Base.metadata
 

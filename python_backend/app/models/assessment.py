@@ -1,52 +1,37 @@
-"""
-评估相关模型定义
-"""
-from sqlalchemy import (
-    Column,
-    String,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Boolean,
-    CheckConstraint,
-    text,
-)
-from sqlalchemy.dialects.postgresql import UUID
+"""本地能力评估，包括练习报告和可继续作答的自测。"""
+
 import uuid
+
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, String, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.models.base import Base, TimestampMixin
 
 
-# class UserCapability(Base, TimestampMixin):
-#     """用户能力评估表
-#
-#     注意：这个模型已经在 user.py 中定义，这里保留是为了兼容性
-#     请使用 app.models.user.UserCapability
-#     """
-#
-#     __tablename__ = "user_capabilities"
-#
-#     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-#     language = Column(
-#         String(10),
-#         CheckConstraint("language IN ('en', 'ja', 'fr')", name="check_language"),
-#         nullable=False,
-#     )
-#     current_level = Column(String(10))
-#     learning_goal = Column(String(10))
-#     is_active_learning = Column(Boolean, default=True)
-#     overall_level = Column(String(10), nullable=False)
-#     confidence_score = Column(Integer)
-#     listening_level = Column(Integer)
-#     speaking_level = Column(Integer)
-#     reading_level = Column(Integer)
-#     writing_level = Column(Integer)
-#     estimated_vocabulary_size = Column(Integer, default=0)
-#     mastered_words_count = Column(Integer, default=0)
-#     learning_words_count = Column(Integer, default=0)
-#     last_assessed_at = Column(DateTime(timezone=True), nullable=True)
-#     next_assessment_due = Column(DateTime(timezone=True), nullable=True)
-#
-#     def __repr__(self) -> str:
-#         return f"<UserCapability(user_id={self.user_id}, language={self.language})>"
+class AssessmentRecord(Base, TimestampMixin):
+    __tablename__ = "assessment_records"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    language = Column(String(10), nullable=False)
+    source = Column(String(20), nullable=False)
+    evidence_key = Column(String(64))
+    questions = Column(JSONB(none_as_null=True))
+    report = Column(JSONB(none_as_null=True))
+    completed_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("language IN ('en', 'ja', 'fr')", name="ck_assessments_language"),
+        CheckConstraint(
+            "(source = 'practice' AND questions IS NULL AND evidence_key IS NOT NULL AND completed_at IS NOT NULL)"
+            " OR (source = 'self_test' AND questions IS NOT NULL AND evidence_key IS NULL)",
+            name="ck_assessments_source",
+        ),
+        CheckConstraint("(completed_at IS NULL) = (report IS NULL)", name="ck_assessments_completion"),
+        UniqueConstraint("user_id", "language", "evidence_key", name="uq_assessments_evidence"),
+        Index("ix_assessments_history", "user_id", "language", "completed_at", "id"),
+        Index(
+            "uq_assessments_active_test", "user_id", "language", unique=True,
+            postgresql_where=text("completed_at IS NULL"),
+        ),
+    )

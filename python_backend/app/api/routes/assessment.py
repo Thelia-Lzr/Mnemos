@@ -1,10 +1,9 @@
 """
 评估路由
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional, List
 import uuid
 
 from app.api.deps import get_db, get_workspace_user
@@ -12,14 +11,19 @@ from app.schemas.assessment import (
     UserCapabilityResponse,
     UserCapabilityCreate,
     UserCapabilityUpdate,
-    LanguageLevel,
-    AssessmentType,
-    ComprehensiveAssessmentRequest,
-    AssessmentResult,
-    AssessmentHistoryEntry,
+    AssessmentRequest,
+    AssessmentReport,
+    AssessmentHistoryResponse,
+    AssessmentSession,
+    AssessmentSubmitRequest,
+    AssessmentLanguage,
 )
 from app.models.user import User
-from app.models.user import UserCapability
+from app.models.user import UserCapability, UserLearningLanguage
+from app.models.assessment import AssessmentRecord
+from app.services.assessment_service import (
+    assess_practice, begin_self_test, find_self_test, report_view, session_view, submit_self_test,
+)
 
 router = APIRouter(prefix="/api/assessment", tags=["评估"])
 
@@ -32,7 +36,11 @@ async def get_capabilities(
 ):
     """获取所有能力"""
     result = await db.execute(
-        select(UserCapability).where(UserCapability.user_id == uuid.UUID(str(current_user.id)))
+        select(UserCapability)
+        .outerjoin(UserLearningLanguage, (UserLearningLanguage.user_id == UserCapability.user_id)
+                   & (UserLearningLanguage.language == UserCapability.language))
+        .where(UserCapability.user_id == current_user.id)
+        .order_by(UserLearningLanguage.is_primary.desc().nulls_last(), UserCapability.language)
     )
     capabilities = list(result.scalars().all())
 
@@ -44,7 +52,7 @@ async def get_capabilities(
                 language=c.language,
                 currentLevel=c.current_level,
                 learningGoal=c.learning_goal,
-                isActiveLearning=c.is_active_learning,
+                isActiveLearning=bool(c.is_active_learning),
                 overallLevel=c.overall_level,
                 confidenceScore=c.confidence_score,
                 listeningLevel=c.listening_level,
@@ -87,14 +95,6 @@ async def create_capability(
         learning_goal=request.learningGoal.value,
         is_active_learning=True,
         overall_level=request.currentLevel.value,
-        confidence_score=50,
-        listening_level=50,
-        speaking_level=50,
-        reading_level=50,
-        writing_level=50,
-        estimated_vocabulary_size=1000,
-        mastered_words_count=0,
-        learning_words_count=0,
     )
     db.add(capability)
     await db.commit()
@@ -105,7 +105,7 @@ async def create_capability(
         language=capability.language,
         currentLevel=capability.current_level,
         learningGoal=capability.learning_goal,
-        isActiveLearning=capability.is_active_learning,
+        isActiveLearning=bool(capability.is_active_learning),
         overallLevel=capability.overall_level,
         confidenceScore=capability.confidence_score,
         listeningLevel=capability.listening_level,
@@ -146,7 +146,7 @@ async def get_capability(
             language=capability.language,
             currentLevel=capability.current_level,
             learningGoal=capability.learning_goal,
-            isActiveLearning=capability.is_active_learning,
+            isActiveLearning=bool(capability.is_active_learning),
             overallLevel=capability.overall_level,
             confidenceScore=capability.confidence_score,
             listeningLevel=capability.listening_level,
@@ -198,7 +198,7 @@ async def update_capability(
         language=capability.language,
         currentLevel=capability.current_level,
         learningGoal=capability.learning_goal,
-        isActiveLearning=capability.is_active_learning,
+        isActiveLearning=bool(capability.is_active_learning),
         overallLevel=capability.overall_level,
         confidenceScore=capability.confidence_score,
         listeningLevel=capability.listening_level,
@@ -215,39 +215,54 @@ async def update_capability(
 
 @router.post("/comprehensive")
 async def comprehensive_assessment(
-    *,
-    request: ComprehensiveAssessmentRequest,
+    request: AssessmentRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_workspace_user),
-):
-    """综合评估"""
-    raise HTTPException(status_code=501, detail="综合评估暂未开放。")
+) -> dict[str, AssessmentReport]:
+    return {"data": await assess_practice(db, current_user.id, request.language)}
 
 
 @router.get("/history/{language}")
 async def get_assessment_history(
-    *,
-    language: str,
-    db: AsyncSession = Depends(get_db),
+    language: AssessmentLanguage,
     limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_workspace_user),
-):
-    """获取评估历史"""
-    # TODO: 实现评估历史查询
-    # 目前返回空列表
-
-    return {
-        "success": True,
-        "data": [],
-    }
+) -> AssessmentHistoryResponse:
+    records = await db.scalars(
+        select(AssessmentRecord).where(
+            AssessmentRecord.user_id == current_user.id,
+            AssessmentRecord.language == language,
+            AssessmentRecord.completed_at.is_not(None),
+        ).order_by(AssessmentRecord.completed_at.desc(), AssessmentRecord.id.desc()).limit(limit)
+    )
+    return AssessmentHistoryResponse(data=[report_view(record) for record in records])
 
 
 @router.post("/reassessment")
 async def request_reassessment(
-    *,
-    request: dict,
+    request: AssessmentRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_workspace_user),
-):
-    """发起再评估"""
-    raise HTTPException(status_code=501, detail="重新评估暂未开放。")
+) -> dict[str, AssessmentSession]:
+    return {"data": await begin_self_test(db, current_user.id, request.language)}
+
+
+@router.get("/reassessment/{test_id}")
+async def get_reassessment(
+    test_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_workspace_user),
+) -> dict[str, AssessmentSession]:
+    record = await find_self_test(db, current_user.id, test_id)
+    return {"data": session_view(record)}
+
+
+@router.post("/reassessment/{test_id}/submit")
+async def submit_reassessment(
+    test_id: uuid.UUID,
+    request: AssessmentSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_workspace_user),
+) -> dict[str, AssessmentReport]:
+    return {"data": await submit_self_test(db, current_user.id, test_id, request.answers)}

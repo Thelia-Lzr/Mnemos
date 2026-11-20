@@ -1,8 +1,9 @@
 """
 评估相关 Pydantic 模式
 """
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, StrictInt
+from typing import Literal, Optional
+from uuid import UUID
 from datetime import datetime
 from enum import Enum
 
@@ -17,21 +18,11 @@ class LanguageLevel(str, Enum):
     C2 = "C2"
 
 
-class AssessmentType(str, Enum):
-    """评估类型"""
-    GRAMMAR = "grammar"
-    VOCABULARY = "vocabulary"
-    LISTENING = "listening"
-    READING = "reading"
-    WRITING = "writing"
-    COMPREHENSIVE = "comprehensive"
-
-
 class UserCapabilityResponse(BaseModel):
     """用户能力响应"""
     id: str
     language: str
-    currentLevel: LanguageLevel
+    currentLevel: Optional[LanguageLevel] = None
     learningGoal: Optional[LanguageLevel] = None
     isActiveLearning: bool
     overallLevel: Optional[str] = None
@@ -64,53 +55,69 @@ class UserCapabilityUpdate(BaseModel):
     isActiveLearning: Optional[bool] = None
 
 
-class ComprehensiveAssessmentRequest(BaseModel):
-    """综合评估请求"""
-    language: str
-    assessmentType: Optional[AssessmentType] = AssessmentType.COMPREHENSIVE
-    dataSource: Optional[str] = None
-    includeRecommendations: bool = True
+AssessmentLanguage = Literal["en", "ja", "fr"]
+AssessmentBand = Literal["beginner", "intermediate", "advanced"]
+AssessmentSource = Literal["practice", "self_test"]
 
 
-class AssessmentResult(BaseModel):
-    """评估结果"""
-    overallLevel: LanguageLevel
-    confidenceScore: int
-    listeningLevel: int
-    speakingLevel: int
-    readingLevel: int
-    writingLevel: int
-    strengths: List[str]
-    weaknesses: List[str]
-    recommendations: List[str]
+class AssessmentRequest(BaseModel):
+    language: AssessmentLanguage
 
 
-class ReassessmentRequest(BaseModel):
-    """再评估请求"""
-    language: str
-    reason: str
-    focusAreas: Optional[List[str]] = None
+class AssessmentSubmitRequest(BaseModel):
+    answers: dict[str, StrictInt] = Field(min_length=1, max_length=30)
 
 
-class ReassessmentResponse(BaseModel):
-    """再评估响应"""
-    reassessmentId: str
-    language: str
-    status: str
-    questions: List[dict]
-    expiresAt: datetime
+class AssessmentBandScore(BaseModel):
+    band: AssessmentBand
+    correct: int
+    total: int
 
 
-class ReassessmentSubmitRequest(BaseModel):
-    """再评估提交请求"""
-    reassessmentId: str
-    responses: List[dict]
-
-
-class AssessmentHistoryEntry(BaseModel):
-    """评估历史条目"""
-    id: str
-    language: str
-    assessmentType: str
-    resultLevel: LanguageLevel
+class AssessmentPracticeEvidence(AssessmentBandScore):
+    resultId: UUID
+    title: str
     completedAt: datetime
+
+
+class AssessmentQuestion(BaseModel):
+    id: str
+    band: AssessmentBand
+    prompt: str
+    options: list[str]
+
+
+class AssessmentAnswer(AssessmentQuestion):
+    selectedIndex: int
+    correctIndex: int
+    explanation: str
+
+
+class AssessmentScores(BaseModel):
+    band: AssessmentBand | None
+    correct: int
+    total: int
+    minimumQuestions: int
+    passingPercent: int
+    bands: list[AssessmentBandScore]
+    practice: list[AssessmentPracticeEvidence] = Field(default_factory=list)
+    answers: list[AssessmentAnswer] = Field(default_factory=list)
+
+
+class AssessmentReport(AssessmentScores):
+    id: UUID
+    language: AssessmentLanguage
+    source: AssessmentSource
+    completedAt: datetime
+
+
+class AssessmentSession(BaseModel):
+    id: UUID
+    language: AssessmentLanguage
+    questions: list[AssessmentQuestion]
+    report: AssessmentReport | None
+
+
+class AssessmentHistoryResponse(BaseModel):
+    success: bool = True
+    data: list[AssessmentReport]

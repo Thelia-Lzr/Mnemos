@@ -68,8 +68,7 @@ from app.schemas.recommendation import (
 )
 from app.schemas.assessment import (
     UserCapabilityResponse as AssessmentUserCapabilityResponse,
-    ComprehensiveAssessmentRequest,
-    ReassessmentRequest,
+    AssessmentRequest,
 )
 from app.schemas.common import (
     APIResponse,
@@ -139,8 +138,7 @@ __all__ = [
     "RecommendationFeedbackRequest",
     # Assessment
     "AssessmentUserCapabilityResponse",
-    "ComprehensiveAssessmentRequest",
-    "ReassessmentRequest",
+    "AssessmentRequest",
     # Common
     "APIResponse",
     "PaginatedResponse",

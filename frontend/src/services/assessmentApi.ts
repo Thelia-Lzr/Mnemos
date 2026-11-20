@@ -1,241 +1,102 @@
 import api from './api';
 
+export type AssessmentLanguage = 'en' | 'ja' | 'fr';
+export type AssessmentBand = 'beginner' | 'intermediate' | 'advanced';
+
+export const assessmentLanguages: Record<AssessmentLanguage, string> = {
+  en: '英语',
+  ja: '日语',
+  fr: '法语',
+};
+
+export const assessmentBands: Record<AssessmentBand, string> = {
+  beginner: '基础',
+  intermediate: '进阶',
+  advanced: '高阶',
+};
+
 export interface UserCapability {
   id: string;
-  userId: string;
-  language: string;
-  currentLevel: string;
-  learningGoal: string;
-  isActiveLearning: boolean;
-  overallLevel: string;
-  confidenceScore: number;
-  listeningLevel: number;
-  speakingLevel: number;
-  readingLevel: number;
-  writingLevel: number;
-  estimatedVocabularySize: number;
-  masteredWordsCount: number;
-  learningWordsCount: number;
-  lastAssessedAt: string;
-  nextAssessmentDue: string | null;
-  vocabularyCapability: VocabularyCapability;
-  grammarCapability: GrammarCapability;
-  comprehensionCapability: ComprehensionCapability;
-  assessmentHistory: CapabilityAssessment[];
-  learningStyle: string;
-  strengths: string[];
-  weaknesses: string[];
-  createdAt: string;
-  updatedAt: string;
+  language: AssessmentLanguage;
+  currentLevel: string | null;
+  learningGoal: string | null;
+  overallLevel: string | null;
+  lastAssessedAt: string | null;
+  listeningLevel: number | null;
+  speakingLevel: number | null;
+  readingLevel: number | null;
+  writingLevel: number | null;
 }
 
-export interface VocabularyCapability {
-  estimatedVocabularySize: number;
-  masteredWordsCount: number;
-  learningWordsCount: number;
-  basicVocabularyMastery: number;
-  intermediateVocabularyMastery: number;
-  advancedVocabularyMastery: number;
-  averageLearningSpeed: number;
-  retentionRate: number;
-  contextualUsageScore: number;
-  collocationsScore: number;
+export interface BandScore {
+  band: AssessmentBand;
+  correct: number;
+  total: number;
 }
 
-export interface GrammarCapability {
-  overallGrammarScore: number;
-  grammarPointsMastered: string[];
-  grammarPointsLearning: string[];
-  grammarPointsWeak: string[];
-  sentenceStructureScore: number;
-  tenseUsageScore: number;
-  complexityHandlingScore: number;
-}
-
-export interface ComprehensionCapability {
-  readingComprehensionScore: number;
-  listeningComprehensionScore: number;
-  literalComprehension: number;
-  inferentialComprehension: number;
-  criticalComprehension: number;
-  maxTextComplexity: string;
-  processingSpeed: number;
-}
-
-export interface CapabilityAssessment {
+export interface AssessmentQuestion {
   id: string;
-  userId: string;
-  language: string;
-  assessmentDate: string;
-  assessmentType: string;
-  overallScore: number;
-  skillScores: Record<string, number>;
-  dataSource: string;
-  confidenceLevel: number;
-  improvementAreas: string[];
-  regressionAreas: string[];
-  recommendations: string[];
-  nextSteps: string[];
-  createdAt: string;
+  band: AssessmentBand;
+  prompt: string;
+  options: string[];
 }
 
-export interface ReassessmentCase {
+export interface AssessmentAnswer extends AssessmentQuestion {
+  selectedIndex: number;
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface AssessmentReport {
   id: string;
-  userId: string;
-  language: string;
-  originalAssessmentId: string;
-  reason: string;
-  focusAreas: string[];
-  userObjections: string[];
-  status: string;
-  targetedQuestions: string[];
-  userResponses: ReassessmentResponse[];
-  newAssessmentId?: string;
-  resolutionNotes?: string;
-  createdAt: string;
-  resolvedAt?: string;
+  source: 'practice' | 'self_test';
+  language: AssessmentLanguage;
+  completedAt: string;
+  band: AssessmentBand | null;
+  correct: number;
+  total: number;
+  minimumQuestions: number;
+  passingPercent: number;
+  bands: BandScore[];
+  practice: (BandScore & { resultId: string; title: string; completedAt: string })[];
+  answers: AssessmentAnswer[];
 }
 
-export interface ReassessmentResponse {
-  questionId: string;
-  question: string;
-  userAnswer: string;
-  aiEvaluation: {
-    score: number;
-    feedback: string;
-    skillAreas: string[];
-  };
-  submittedAt: string;
+export interface AssessmentSession {
+  id: string;
+  language: AssessmentLanguage;
+  questions: AssessmentQuestion[];
+  report: AssessmentReport | null;
 }
 
-export interface CreateCapabilityRequest {
-  language: string;
-  currentLevel: string;
-  learningGoal: string;
+interface Response<T> {
+  data: T;
 }
 
-export interface UpdateCapabilityRequest {
-  currentLevel?: string;
-  learningGoal?: string;
-  isActiveLearning?: boolean;
-  overallLevel?: string;
-  confidenceScore?: number;
-  listeningLevel?: number;
-  speakingLevel?: number;
-  readingLevel?: number;
-  writingLevel?: number;
-  vocabularyCapability?: Partial<VocabularyCapability>;
-  grammarCapability?: Partial<GrammarCapability>;
-  comprehensionCapability?: Partial<ComprehensionCapability>;
-  learningStyle?: string;
-  strengths?: string[];
-  weaknesses?: string[];
-}
+const assessmentApi = {
+  async getAllCapabilities(signal?: AbortSignal) {
+    return (await api.get<Response<UserCapability[]>>('/assessment/capabilities', { signal })).data.data;
+  },
 
-export interface AssessmentRequest {
-  language: string;
-  assessmentType?: string;
-  dataSource?: string;
-  includeRecommendations?: boolean;
-}
+  async getHistory(language: AssessmentLanguage, signal?: AbortSignal) {
+    return (await api.get<Response<AssessmentReport[]>>(`/assessment/history/${language}`, { signal })).data.data;
+  },
 
-export interface ReassessmentRequest {
-  language: string;
-  reason: string;
-  focusAreas?: string[];
-}
+  async assessPractice(language: AssessmentLanguage) {
+    return (await api.post<Response<AssessmentReport>>('/assessment/comprehensive', { language })).data.data;
+  },
 
-class AssessmentApi {
-  /**
-   * Get all user capabilities
-   */
-  async getAllCapabilities(): Promise<UserCapability[]> {
-    const response = await api.get('/assessment/capabilities');
-    return response.data.data;
-  }
+  async startSelfTest(language: AssessmentLanguage) {
+    return (await api.post<Response<AssessmentSession>>('/assessment/reassessment', { language })).data.data;
+  },
 
-  /**
-   * Get user capability for a specific language
-   */
-  async getCapability(language: string): Promise<UserCapability> {
-    const response = await api.get(`/assessment/capability/${language}`);
-    return response.data.data;
-  }
+  async getSelfTest(id: string, signal?: AbortSignal) {
+    return (await api.get<Response<AssessmentSession>>(`/assessment/reassessment/${id}`, { signal })).data.data;
+  },
 
-  /**
-   * Create user capability for a language
-   */
-  async createCapability(request: CreateCapabilityRequest): Promise<UserCapability> {
-    const response = await api.post('/assessment/capability', request);
-    return response.data.data;
-  }
+  async submitSelfTest(id: string, answers: Record<string, number>) {
+    return (await api.post<Response<AssessmentReport>>(`/assessment/reassessment/${id}/submit`, { answers })).data.data;
+  },
+};
 
-  /**
-   * Update user capability
-   */
-  async updateCapability(language: string, request: UpdateCapabilityRequest): Promise<UserCapability> {
-    const response = await api.put(`/assessment/capability/${language}`, request);
-    return response.data.data;
-  }
-
-  /**
-   * Perform comprehensive assessment
-   */
-  async performComprehensiveAssessment(request: AssessmentRequest): Promise<CapabilityAssessment> {
-    const response = await api.post('/assessment/comprehensive', request);
-    return response.data.data;
-  }
-
-  /**
-   * Get assessment history for a language
-   */
-  async getAssessmentHistory(language: string, limit: number = 10): Promise<CapabilityAssessment[]> {
-    const response = await api.get(`/assessment/history/${language}`, {
-      params: { limit }
-    });
-    return response.data.data;
-  }
-
-  /**
-   * Initiate reassessment
-   */
-  async initiateReassessment(request: ReassessmentRequest): Promise<ReassessmentCase> {
-    const response = await api.post('/assessment/reassessment', request);
-    return response.data.data;
-  }
-
-  /**
-   * Get reassessment case
-   */
-  async getReassessmentCase(reassessmentId: string): Promise<ReassessmentCase> {
-    throw new Error('当前后端未提供获取单个 reassessment 的端点');
-  }
-
-  /**
-   * Submit reassessment response
-   */
-  async submitReassessmentResponse(
-    reassessmentId: string, 
-    questionId: string, 
-    userAnswer: string
-  ): Promise<ReassessmentResponse> {
-    throw new Error('当前后端未提供提交 reassessment 响应的端点');
-  }
-
-  /**
-   * Cancel reassessment
-   */
-  async cancelReassessment(reassessmentId: string, reason?: string): Promise<void> {
-    throw new Error('当前后端未提供取消 reassessment 的端点');
-  }
-
-  /**
-   * Get reassessment history for a language
-   */
-  async getReassessmentHistory(language: string): Promise<ReassessmentCase[]> {
-    throw new Error('当前后端未提供 reassessment 历史端点');
-  }
-}
-
-export const assessmentApi = new AssessmentApi();
 export default assessmentApi;

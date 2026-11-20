@@ -59,6 +59,7 @@ test('mobile navigation opens from the keyboard and follows current-page links',
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/api/users/profile') return route.fulfill({ json: { id: 'local', username: '本地工作台' } });
     if (pathname === '/api/users/learning-status') return route.fulfill({ json: { data: { languages: [], recentPractices: [] } } });
+    if (pathname === '/api/assessment/history/en') return route.fulfill({ json: { data: [] } });
     if (pathname === '/api/assessment/capabilities') return route.fulfill({ json: { data: [] } });
     return route.abort();
   });
@@ -68,6 +69,7 @@ test('mobile navigation opens from the keyboard and follows current-page links',
   await navigation.getByRole('button', { name: '学习中心' }).press('Enter');
   await navigation.getByRole('link', { name: '能力评估' }).press('Enter');
   await expect(page.getByRole('heading', { name: '语言能力评估' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '开始或继续自测' })).toBeEnabled();
   await expect(navigation).toBeHidden();
   await page.getByRole('button', { name: '打开导航' }).click();
   await expect(navigation.getByRole('link', { name: '能力评估' })).toHaveAttribute('aria-current', 'page');
