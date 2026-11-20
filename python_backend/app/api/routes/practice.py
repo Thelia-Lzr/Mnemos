@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, or_
 from typing import Optional, List, Dict, Any
 import uuid
 import sqlalchemy
@@ -16,6 +16,7 @@ from app.schemas.practice import (
     PracticeGroupResponse,
     QuestionResponse,
     PracticeResultResponse,
+    PracticeResultDetailResponse,
     PracticeAIAnalysisResponse,
     PracticeSubmitRequest,
     PracticeGenerateRequest,
@@ -27,6 +28,84 @@ from app.models.practice import PracticeGroup, PracticeResult, PracticeAIAnalysi
 from app.models.user import User
 
 router = APIRouter(prefix="/api/practice", tags=["练习"])
+
+
+def serialize_group(practice_group: PracticeGroup, questions: list[Question]) -> PracticeGroupResponse:
+    return PracticeGroupResponse(
+        id=str(practice_group.id),
+        userId=str(practice_group.user_id),
+        title=practice_group.title,
+        description=practice_group.description,
+        language=practice_group.language,
+        difficulty=practice_group.difficulty,
+        type=practice_group.type,
+        estimatedDuration=practice_group.estimated_duration,
+        focusAreas=practice_group.focus_areas,
+        createdAt=practice_group.created_at,
+        questions=[
+            QuestionResponse(
+                id=str(q.id),
+                practiceGroupId=str(q.practice_group_id),
+                type=q.type,
+                content=q.content,
+                options=q.options,
+                vocabularyWords=q.vocabulary_words or [],
+                grammarPoints=q.grammar_points or [],
+                correctAnswer=q.correct_answer,
+                explanation=q.explanation,
+                difficulty=q.difficulty,
+                orderIndex=q.order_index,
+            )
+            for q in questions
+        ],
+    )
+
+
+def serialize_result(result: PracticeResult) -> PracticeResultResponse:
+    return PracticeResultResponse(
+        id=str(result.id),
+        userId=str(result.user_id),
+        practiceGroupId=str(result.practice_group_id),
+        totalQuestions=result.total_questions,
+        correctAnswers=result.correct_answers,
+        accuracy=float(result.accuracy),
+        totalTime=result.total_time,
+        averageTimePerQuestion=(
+            (result.total_time or 0) / result.total_questions if result.total_questions else 0
+        ),
+        weakAreas=result.weak_areas,
+        improvedAreas=result.improved_areas,
+        recommendedFocus=result.recommended_focus,
+        completedAt=result.completed_at,
+    )
+
+
+def serialize_analysis(analysis: PracticeAIAnalysis) -> PracticeAIAnalysisResponse:
+    return PracticeAIAnalysisResponse(
+        id=str(analysis.id),
+        practiceResultId=str(analysis.practice_result_id),
+        analysisContent=analysis.analysis_content,
+        learningAdvice=analysis.learning_advice,
+        strengthsIdentified=analysis.strengths_identified,
+        weaknessesIdentified=analysis.weaknesses_identified,
+        improvementSuggestions=analysis.improvement_suggestions,
+        confidenceScore=analysis.confidence_score,
+        aiModel=analysis.ai_model,
+        userId=str(analysis.user_id),
+        tokensUsed=analysis.tokens_used,
+        createdAt=analysis.created_at,
+        overallProgressDirection=analysis.overall_progress_direction,
+        progressMessage=analysis.progress_message,
+    )
+
+
+async def get_result_for_user(db: AsyncSession, result_id: uuid.UUID, user: User) -> PracticeResult:
+    result = await db.scalar(select(PracticeResult).where(
+        PracticeResult.id == result_id, PracticeResult.user_id == user.id,
+    ))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Practice result not found")
+    return result
 
 
 @router.post("/generate-group", response_model=PracticeGroupResponse)
@@ -51,32 +130,7 @@ async def generate_practice_group(
             focus_areas=request.focusAreas,
         )
 
-        return PracticeGroupResponse(
-            id=str(practice_group.id),
-            userId=str(practice_group.user_id),
-            title=practice_group.title,
-            description=practice_group.description,
-            language=practice_group.language,
-            difficulty=practice_group.difficulty,
-            type=practice_group.type,
-            estimatedDuration=practice_group.estimated_duration,
-            focusAreas=practice_group.focus_areas,
-            createdAt=practice_group.created_at,
-            questions=[
-                QuestionResponse(
-                    id=str(q.id),
-                    practiceGroupId=str(q.practice_group_id),
-                    type=q.type,
-                    content=q.content,
-                    options=q.options,
-                    correctAnswer=q.correct_answer,
-                    explanation=q.explanation,
-                    difficulty=q.difficulty,
-                    orderIndex=q.order_index,
-                )
-                for q in practice_group.questions
-            ] if practice_group.questions else [],
-        )
+        return serialize_group(practice_group, practice_group.questions)
     except AIUnavailable:
         raise
     except Exception as e:
@@ -167,32 +221,7 @@ async def get_practice_group(
     )
     questions = list(q_result.scalars().all())
 
-    return PracticeGroupResponse(
-        id=str(practice_group.id),
-        userId=str(practice_group.user_id),
-        title=practice_group.title,
-        description=practice_group.description,
-        language=practice_group.language,
-        difficulty=practice_group.difficulty,
-        type=practice_group.type,
-        estimatedDuration=practice_group.estimated_duration,
-        focusAreas=practice_group.focus_areas,
-        createdAt=practice_group.created_at,
-        questions=[
-            QuestionResponse(
-                id=str(q.id),
-                practiceGroupId=str(q.practice_group_id),
-                type=q.type,
-                content=q.content,
-                options=q.options,
-                correctAnswer=q.correct_answer,
-                explanation=q.explanation,
-                difficulty=q.difficulty,
-                orderIndex=q.order_index,
-            )
-            for q in questions
-        ],
-    )
+    return serialize_group(practice_group, questions)
 
 
 @router.post("/group/{group_id}/submit", response_model=PracticeResultResponse)
@@ -214,20 +243,7 @@ async def submit_practice(
             total_time=request.totalTime,
         )
 
-        return PracticeResultResponse(
-            id=str(result.id),
-            userId=str(result.user_id),
-            practiceGroupId=str(result.practice_group_id),
-            totalQuestions=result.total_questions,
-            correctAnswers=result.correct_answers,
-            accuracy=float(result.accuracy),
-            totalTime=result.total_time,
-            averageTimePerQuestion=float(result.average_time_per_question) if result.average_time_per_question else None,
-            weakAreas=result.weak_areas,
-            improvedAreas=result.improved_areas,
-            recommendedFocus=result.recommended_focus,
-            completedAt=result.completed_at,
-        )
+        return serialize_result(result)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -238,22 +254,36 @@ async def get_practice_history(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    language: str | None = Query(None, pattern="^(en|ja|fr)$"),
+    difficulty: str | None = Query(None, pattern="^(beginner|intermediate|advanced)$"),
+    search: str = Query("", max_length=255),
     current_user: User = Depends(get_workspace_user),
 ):
     """获取练习历史"""
     user_uuid = uuid.UUID(str(current_user.id))
 
+    filters = [PracticeGroup.user_id == user_uuid]
+    if language:
+        filters.append(PracticeGroup.language == language)
+    if difficulty:
+        filters.append(PracticeGroup.difficulty == difficulty)
+    if search.strip():
+        term = search.strip().lower()
+        filters.append(or_(
+            func.lower(PracticeGroup.title).contains(term, autoescape=True),
+            func.lower(PracticeGroup.description).contains(term, autoescape=True),
+        ))
     groups_result = await db.execute(
         select(PracticeGroup)
-        .where(PracticeGroup.user_id == user_uuid)
-        .order_by(PracticeGroup.created_at.desc())
+        .where(*filters)
+        .order_by(PracticeGroup.created_at.desc(), PracticeGroup.id)
         .offset(offset)
         .limit(limit)
     )
     groups = list(groups_result.scalars().all())
 
     total_result = await db.execute(
-        select(func.count(PracticeGroup.id)).where(PracticeGroup.user_id == user_uuid)
+        select(func.count(PracticeGroup.id)).where(*filters)
     )
     total = int(total_result.scalar() or 0)
 
@@ -376,6 +406,39 @@ async def analyze_practice(
     }
 
 
+@router.get("/result/{result_id}", response_model=PracticeResultDetailResponse)
+async def get_practice_result(
+    result_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_workspace_user),
+):
+    result = await get_result_for_user(db, result_id, current_user)
+    group = await get_practice_group(group_id=str(result.practice_group_id), db=db, current_user=current_user)
+    answers = result.answers or {}
+    if isinstance(answers, list):
+        answers = {
+            item["questionId"]: item.get("userAnswer") or ""
+            for item in answers if isinstance(item, dict) and "questionId" in item
+        }
+    return PracticeResultDetailResponse(result=serialize_result(result), practiceGroup=group, userAnswers=answers)
+
+
+@router.get("/result/{result_id}/analysis", response_model=PracticeAIAnalysisResponse | None)
+async def get_saved_analysis(
+    result_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_workspace_user),
+):
+    await get_result_for_user(db, result_id, current_user)
+    analysis = await db.scalar(
+        select(PracticeAIAnalysis)
+        .where(PracticeAIAnalysis.practice_result_id == result_id, PracticeAIAnalysis.user_id == current_user.id)
+        .order_by(PracticeAIAnalysis.created_at.desc())
+        .limit(1)
+    )
+    return serialize_analysis(analysis) if analysis else None
+
+
 @router.post("/result/{result_id}/analyze", response_model=PracticeAIAnalysisResponse)
 async def analyze_practice_result(
     *,
@@ -392,19 +455,7 @@ async def analyze_practice_result(
             practice_result_id=result_id,
         )
 
-        return PracticeAIAnalysisResponse(
-            id=str(analysis.id),
-            practiceResultId=str(analysis.practice_result_id),
-            analysisContent=analysis.analysis_content,
-            learningAdvice=analysis.learning_advice,
-            strengthsIdentified=analysis.strengths_identified,
-            weaknessesIdentified=analysis.weaknesses_identified,
-            improvementSuggestions=analysis.improvement_suggestions,
-            confidenceScore=analysis.confidence_score,
-            aiModel=analysis.ai_model,
-            overallProgressDirection=analysis.overall_progress_direction,
-            progressMessage=analysis.progress_message,
-        )
+        return serialize_analysis(analysis)
     except AIUnavailable:
         raise
     except Exception as e:

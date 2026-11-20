@@ -178,7 +178,6 @@ async def run_profile(
             "provider": profile.provider.value,
             "prompt_tokens": input_tokens,
             "completion_tokens": output_tokens,
-            "credit_cost": 0,
         },
     }
 

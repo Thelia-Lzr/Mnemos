@@ -72,6 +72,7 @@ async def get_today_recommendations(
                 viewedAt=r.viewed_at,
                 feedbackRating=r.feedback_rating,
                 feedbackIsHelpful=r.feedback_is_helpful,
+                feedbackComments=r.feedback_comments,
                 quickPracticeOptions=r.quick_practice_options or [],
             )
             for r in recommendations
@@ -115,6 +116,7 @@ async def get_recommendations_by_date(
                 viewedAt=r.viewed_at,
                 feedbackRating=r.feedback_rating,
                 feedbackIsHelpful=r.feedback_is_helpful,
+                feedbackComments=r.feedback_comments,
                 quickPracticeOptions=r.quick_practice_options or [],
             )
             for r in recommendations
@@ -137,6 +139,7 @@ async def generate_recommendations(
         await service.generate_recommendation(
             user_id=str(current_user.id),
             language=language,
+            regenerate=True,
         )
 
         return {
@@ -151,14 +154,15 @@ async def generate_recommendations(
 async def mark_as_viewed(
     *,
     language: str,
-    recommendation_id: str = Body(..., embed=True),
+    recommendation_id: uuid.UUID = Body(..., embed=True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_workspace_user),
 ):
     """标记已查看"""
     result = await db.execute(
         select(DailyRecommendation).where(
-            DailyRecommendation.id == uuid.UUID(recommendation_id),
+            DailyRecommendation.id == recommendation_id,
+            DailyRecommendation.language == language,
             DailyRecommendation.user_id == uuid.UUID(str(current_user.id)),
         )
     )
@@ -182,14 +186,15 @@ async def submit_feedback(
     *,
     language: str,
     request: RecommendationFeedbackRequest,
-    recommendation_id: str = Body(..., embed=True),
+    recommendation_id: uuid.UUID = Body(..., embed=True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_workspace_user),
 ):
     """提交反馈"""
     result = await db.execute(
         select(DailyRecommendation).where(
-            DailyRecommendation.id == uuid.UUID(recommendation_id),
+            DailyRecommendation.id == recommendation_id,
+            DailyRecommendation.language == language,
             DailyRecommendation.user_id == uuid.UUID(str(current_user.id)),
         )
     )
@@ -200,6 +205,11 @@ async def submit_feedback(
 
     recommendation.feedback_rating = request.rating
     recommendation.feedback_is_helpful = request.isHelpful
+    recommendation.feedback_comments = request.comments
+    recommendation.recommendation_data = {
+        **recommendation.recommendation_data,
+        "feedback_followed_ids": request.followedRecommendations or [],
+    }
     await db.commit()
 
     return {
@@ -251,6 +261,7 @@ async def get_recommendation_history(
                 viewedAt=r.viewed_at,
                 feedbackRating=r.feedback_rating,
                 feedbackIsHelpful=r.feedback_is_helpful,
+                feedbackComments=r.feedback_comments,
                 quickPracticeOptions=r.quick_practice_options or [],
             )
             for r in recommendations

@@ -5,7 +5,7 @@ export interface UserLanguage {
   userId: string;
   language: string;
   currentLevel: string;
-  targetLevel?: string;
+  targetLevel?: string | null;
   isPrimary: boolean;
   isActive: boolean;
   createdAt: string;
@@ -15,13 +15,13 @@ export interface UserLanguage {
 export interface CreateUserLanguageRequest {
   language: string;
   currentLevel: string;
-  targetLevel?: string;
+  targetLevel?: string | null;
   isPrimary?: boolean;
 }
 
 export interface UpdateUserLanguageRequest {
   currentLevel?: string;
-  targetLevel?: string;
+  targetLevel?: string | null;
   isPrimary?: boolean;
   isActive?: boolean;
 }
@@ -39,7 +39,12 @@ class UserLanguageApi {
     const response = await api.get('/user-languages', {
       params: { active: activeOnly }
     });
-    return response.data.data;
+    return response.data.data.map((item: UserLanguage & { proficiencyLevel: string; learningGoal: string | null }) => ({
+      ...item,
+      currentLevel: item.proficiencyLevel,
+      targetLevel: item.learningGoal,
+      isActive: item.isActive ?? true,
+    })).filter((item: UserLanguage) => !activeOnly || item.isActive);
   }
 
   /**
@@ -61,8 +66,13 @@ class UserLanguageApi {
    * Add new language
    */
   async addUserLanguage(request: CreateUserLanguageRequest): Promise<UserLanguage> {
-    const response = await api.post('/user-languages', request);
-    return response.data.data;
+    const response = await api.post('/user-languages', {
+      language: request.language,
+      proficiencyLevel: request.currentLevel,
+      learningGoal: request.targetLevel ?? null,
+      isPrimary: request.isPrimary,
+    });
+    return { ...response.data.data, currentLevel: response.data.data.proficiencyLevel, targetLevel: response.data.data.learningGoal };
   }
 
   /**

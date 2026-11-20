@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Card,
@@ -18,6 +18,7 @@ import { PlayArrow, Schedule } from '@mui/icons-material';
 import { QuestionCard } from './QuestionCard';
 import { ResultSummary } from './ResultSummary';
 import practiceApi from '../../services/practiceApi';
+import ErrorHandler from '../../utils/errorHandler';
 
 interface Question {
   id: string;
@@ -74,17 +75,14 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
   const [isCompleted, setIsCompleted] = useState(false);
   const [result, setResult] = useState<PracticeResult | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const submitPending = useRef(false);
 
   // Safety check for questions array
   const questions = practiceGroup.questions || [];
   const currentQuestion = questions[currentQuestionIndex];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
-
-  useEffect(() => {
-    if (isStarted && !questionStartTime) {
-      setQuestionStartTime(new Date());
-    }
-  }, [isStarted, currentQuestionIndex]);
 
   const handleStart = () => {
     setIsStarted(true);
@@ -93,13 +91,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
   };
 
   const handleAnswer = (questionId: string, answer: string) => {
-    console.log('PracticeGroup handleAnswer called:', {
-      questionId,
-      answer,
-      currentQuestionIndex,
-      totalQuestions: questions.length,
-      isLastQuestion: currentQuestionIndex >= questions.length - 1
-    });
+    if (submitPending.current) return;
 
     // Record time spent on this question
     const timeSpent = questionStartTime ? Date.now() - questionStartTime.getTime() : 0;
@@ -120,18 +112,19 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
 
     // Move to next question or complete
     if (currentQuestionIndex < questions.length - 1) {
-      console.log('Moving to next question');
       setCurrentQuestionIndex(prev => prev + 1);
       setQuestionStartTime(new Date());
     } else {
-      console.log('Last question answered, calling handleComplete with updated answers');
       // Pass the updated answers directly to handleComplete to avoid state timing issues
       handleCompleteWithAnswers(updatedAnswers, updatedQuestionTimes);
     }
   };
 
   const handleCompleteWithAnswers = async (finalAnswers: Record<string, string>, finalQuestionTimes: Record<string, number>) => {
-    if (!startTime) return;
+    if (!startTime || submitPending.current) return;
+    submitPending.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
 
     const totalTime = Date.now() - startTime.getTime();
     
@@ -143,14 +136,6 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
       attempts: 1
     }));
 
-    console.log('Submitting practice with data:', {
-      practiceGroupId: practiceGroup.id,
-      answers: submittedAnswers,
-      totalTime,
-      answersCount: submittedAnswers.length,
-      allQuestionsAnswered: submittedAnswers.every(a => a.userAnswer !== '')
-    });
-
     try {
       // Submit to backend using practiceApi
       const result = await practiceApi.submitPractice(practiceGroup.id, {
@@ -158,21 +143,15 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
         totalTime
       });
 
-      console.log('Practice submission successful:', result);
       setResult(result);
       setIsCompleted(true);
       onComplete(result);
     } catch (error) {
-      console.error('Error submitting practice:', error);
-      // Show more detailed error to user
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      alert(`提交练习结果时出现错误：${errorMessage}。请重试。`);
+      setSubmitError(ErrorHandler.getErrorMessage(error));
+    } finally {
+      submitPending.current = false;
+      setSubmitting(false);
     }
-  };
-
-  const handleComplete = async () => {
-    // Use current state values
-    handleCompleteWithAnswers(answers, questionTimes);
   };
 
   const handleExit = () => {
@@ -238,7 +217,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
               startIcon={<PlayArrow />}
               onClick={handleStart}
             >
-              开始练习
+              开始答题
             </Button>
             <Button
               variant="outlined"
@@ -288,6 +267,7 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
               variant="outlined"
               color="error"
               onClick={handleExit}
+              disabled={submitting}
             >
               退出练习
             </Button>
@@ -305,9 +285,12 @@ export const PracticeGroup: React.FC<PracticeGroupProps> = ({
         </CardContent>
       </Card>
 
+      {submitError && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
       {/* Current Question */}
       <QuestionCard
+        key={currentQuestion.id}
         question={currentQuestion}
+        submitting={submitting}
         questionNumber={currentQuestionIndex + 1}
         totalQuestions={questions.length}
         onAnswer={handleAnswer}

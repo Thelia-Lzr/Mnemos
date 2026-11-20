@@ -10,7 +10,6 @@ import {
     Home,
     Menu as MenuIcon,
     NavigateNext,
-    Payment,
     Person,
     School,
     SportsEsports,
@@ -37,9 +36,9 @@ import {
     useMediaQuery,
     useTheme
 } from '@mui/material';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
 import { RootState } from '../../store/store';
 
 const drawerWidth = 228;
@@ -60,15 +59,14 @@ interface BreadcrumbItem {
 const Layout: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const navigate = useNavigate();
   const location = useLocation();
+  const main = useRef<HTMLElement>(null);
+  useEffect(() => { main.current?.scrollTo(0, 0); }, [location.pathname]);
   
   const profile = useSelector((state: RootState) => state.workspace.profile);
   
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
   const menuItems: MenuItem[] = [
     { 
@@ -90,7 +88,6 @@ const Layout: React.FC = () => {
     { text: '生词表', icon: <Book />, path: '/vocabulary' },
     { text: 'PK 对战', icon: <SportsEsports />, path: '/pk' },
     { text: '个人资料', icon: <Person />, path: '/profile' },
-    { text: '充值中心', icon: <Payment />, path: '/recharge' },
     { text: 'AI 配置', icon: <Tune />, path: '/ai-settings' },
     { text: '工作台管理', icon: <AdminPanelSettings />, path: '/admin' },
   ];
@@ -110,7 +107,6 @@ const Layout: React.FC = () => {
       'vocabulary': '生词表',
       'pk': 'PK 对战',
       'profile': '个人资料',
-      'recharge': '充值中心',
       'ai-settings': 'AI 配置',
       'admin': '工作台管理',
       'assessment': '能力评估'
@@ -130,47 +126,6 @@ const Layout: React.FC = () => {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
-  };
-
-  const handleItemClick = (item: MenuItem) => {
-    if (item.children) {
-      const isExpanded = expandedItems.includes(item.text);
-      if (isExpanded) {
-        setExpandedItems(expandedItems.filter(text => text !== item.text));
-      } else {
-        setExpandedItems([...expandedItems, item.text]);
-      }
-    } else {
-      navigate(item.path);
-      if (isMobile) {
-        setMobileOpen(false);
-      }
-    }
-  };
-
-  // Touch gesture handlers for swipe navigation
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe && mobileOpen) {
-      setMobileOpen(false);
-    }
-    if (isRightSwipe && !mobileOpen) {
-      setMobileOpen(true);
-    }
   };
 
   const isItemActive = (path: string): boolean => {
@@ -197,18 +152,28 @@ const Layout: React.FC = () => {
 
   const renderMenuItem = (item: MenuItem, depth: number = 0) => {
     const isActive = isItemActive(item.path);
-    const isExpanded = expandedItems.includes(item.text);
+    const childIsActive = item.children?.some((child) => isItemActive(child.path)) ?? false;
+    const isExpanded = expandedItems[item.text] ?? childIsActive;
     const hasChildren = item.children && item.children.length > 0;
 
     return (
       <React.Fragment key={item.text}>
         <ListItemButton
-          onClick={() => handleItemClick(item)}
+          {...(hasChildren
+            ? { component: 'button', type: 'button' }
+            : { component: RouterLink, to: item.path })}
+          onClick={(event) => {
+            if (hasChildren) {
+              setExpandedItems((previous) => ({ ...previous, [item.text]: !isExpanded }));
+            } else if (isMobile && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+              setMobileOpen(false);
+            }
+          }}
           selected={!hasChildren && isActive}
           aria-current={!hasChildren && isActive ? 'page' : undefined}
           aria-expanded={hasChildren ? isExpanded : undefined}
           sx={{
-            pl: 1.5 + depth * 2, mx: 1.5, mb: 0.5, minHeight: 42,
+            pl: 1.5 + depth * 2, textAlign: 'start', width: 'calc(100% - 24px)', mx: 1.5, mb: 0.5, minHeight: 42,
             borderLeft: '3px solid transparent',
             '&.Mui-selected': { borderLeftColor: 'primary.main' },
             '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.07) },
@@ -241,7 +206,7 @@ const Layout: React.FC = () => {
   };
 
   const drawer = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+    <Box component="nav" aria-label="主导航" sx={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       <Toolbar sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}>
         <Box aria-hidden="true" sx={{ width: 15, height: 15, bgcolor: 'currentColor', transform: 'rotate(45deg)', mr: 1.75 }} />
         <Typography variant="h5" component="span">Mnemos</Typography>
@@ -274,7 +239,7 @@ const Layout: React.FC = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
+    <Box sx={{ display: 'flex', height: '100dvh' }}>
       <AppBar
         position="fixed"
         sx={{
@@ -291,6 +256,7 @@ const Layout: React.FC = () => {
           <IconButton
             color="inherit"
             aria-label="打开导航"
+            aria-expanded={mobileOpen}
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { md: 'none' } }}
@@ -334,11 +300,8 @@ const Layout: React.FC = () => {
                     <Link
                       key={crumb.label}
                       color="inherit"
-                      href={crumb.path}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (crumb.path) navigate(crumb.path);
-                      }}
+                      component={RouterLink}
+                      to={crumb.path || '/'}
                       sx={{ 
                         textDecoration: 'none',
                         fontSize: '0.875rem',
@@ -358,14 +321,12 @@ const Layout: React.FC = () => {
       </AppBar>
       
       <Box
-        component="nav"
-        aria-label="主导航"
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
       >
         <Drawer
           variant="temporary"
           open={mobileOpen}
-          onClose={handleDrawerToggle}
+          onClose={() => setMobileOpen(false)}
           ModalProps={{
             keepMounted: true, // Better open performance on mobile.
           }}
@@ -399,6 +360,7 @@ const Layout: React.FC = () => {
       
       <Box
         component="main"
+        ref={main}
         sx={{
           flexGrow: 1,
           minWidth: 0,
@@ -406,13 +368,10 @@ const Layout: React.FC = () => {
           p: 0,
           width: { md: `calc(100% - ${drawerWidth}px)` },
           mt: { xs: 7, sm: 8 },
-          minHeight: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+          minHeight: 0,
           overflow: 'auto',
           position: 'relative'
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
         <Outlet />
       </Box>

@@ -43,11 +43,14 @@ import {
   CheckBoxOutlineBlank
 } from '@mui/icons-material';
 import { practiceApi, PracticeHistoryItem, AIAnalysis } from '../services/practiceApi';
+import ErrorHandler from '../utils/errorHandler';
 import { PracticeResultDetail } from '../components/Practice/PracticeResultDetail';
 
 const PracticeHistoryPage: React.FC = () => {
   const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [feedback, setFeedback] = useState<{ severity: 'error' | 'success'; message: string } | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedAnalysis, setSelectedAnalysis] = useState<AIAnalysis | null>(null);
@@ -70,19 +73,28 @@ const PracticeHistoryPage: React.FC = () => {
   const itemsPerPage = 12;
 
   useEffect(() => {
-    fetchPracticeHistory();
-  }, [page]);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => { void fetchPracticeHistory(controller.signal); }, searchTerm ? 250 : 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [page, languageFilter, difficultyFilter, searchTerm]);
 
-  const fetchPracticeHistory = async () => {
+  useEffect(() => { setSelectedPracticeIds(new Set()); }, [page, languageFilter, difficultyFilter, searchTerm]);
+
+  const fetchPracticeHistory = async (signal?: AbortSignal) => {
+    setLoading(true);
+    setLoadError(false);
     try {
-      setLoading(true);
-      const response = await practiceApi.getPracticeHistory(itemsPerPage, (page - 1) * itemsPerPage);
+      const response = await practiceApi.getPracticeHistory(itemsPerPage, (page - 1) * itemsPerPage, {
+        language: languageFilter || undefined,
+        difficulty: difficultyFilter || undefined,
+        search: searchTerm || undefined,
+      }, signal);
       setPracticeHistory(response.data);
       setTotalPages(Math.ceil(response.pagination.total / itemsPerPage));
-    } catch (error) {
-      console.error('Error fetching practice history:', error);
+    } catch {
+      if (!signal?.aborted) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
@@ -93,11 +105,11 @@ const PracticeHistoryPage: React.FC = () => {
         setSelectedAnalysis(analysis);
         setAnalysisDialogOpen(true);
       } else {
-        alert('该练习还没有AI分析结果');
+        setFeedback({ severity: 'error', message: '该练习还没有 AI 分析结果。' });
       }
     } catch (error) {
       console.error('Error fetching analysis:', error);
-      alert('获取分析结果失败');
+      setFeedback({ severity: 'error', message: '获取分析结果失败，请重试。' });
     }
   };
 
@@ -148,18 +160,10 @@ const PracticeHistoryPage: React.FC = () => {
       setSelectionMode(false);
       setDeleteDialogOpen(false);
       
-      alert(`${result.message}`);
-    } catch (error: any) {
-      console.error('Error deleting practice history:', error);
-      let errorMessage = '删除失败，请稍后重试';
-      
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
+      setFeedback({ severity: 'success', message: `已删除 ${result.deletedCount} 条练习记录。` });
+    } catch (error) {
+      setDeleteDialogOpen(false);
+      setFeedback({ severity: 'error', message: ErrorHandler.getErrorMessage(error) });
     } finally {
       setDeleteLoading(false);
     }
@@ -199,7 +203,7 @@ const PracticeHistoryPage: React.FC = () => {
   };
 
   const formatTime = (milliseconds: number) => {
-    const seconds = Math.floor(milliseconds / 1000);
+    const seconds = Math.floor((milliseconds ?? 0) / 1000);
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     if (minutes > 0) {
@@ -208,33 +212,13 @@ const PracticeHistoryPage: React.FC = () => {
     return `${remainingSeconds}秒`;
   };
 
-  // Filter and search logic
-  const filteredHistory = practiceHistory.filter(item => {
-    const matchesLanguage = !languageFilter || item.language === languageFilter;
-    const matchesDifficulty = !difficultyFilter || item.difficulty === difficultyFilter;
-    const matchesSearch = !searchTerm || 
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesLanguage && matchesDifficulty && matchesSearch;
-  });
+  const filteredHistory = practiceHistory;
 
   // Calculate statistics
   const completedPractices = practiceHistory.filter(p => p.result);
   const totalAccuracy = completedPractices.reduce((sum, p) => sum + (p.result?.accuracy || 0), 0);
   const averageAccuracy = completedPractices.length > 0 ? totalAccuracy / completedPractices.length : 0;
   const totalTime = completedPractices.reduce((sum, p) => sum + (p.result?.totalTime || 0), 0);
-
-  if (loading) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          练习历史
-        </Typography>
-        <LinearProgress />
-      </Box>
-    );
-  }
 
   // Show result detail in full page mode
   if (selectedResultId && showResultDetail) {
@@ -304,7 +288,7 @@ const PracticeHistoryPage: React.FC = () => {
                 {completedPractices.length}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                已完成练习
+                本页已完成练习
               </Typography>
             </CardContent>
           </Card>
@@ -359,9 +343,9 @@ const PracticeHistoryPage: React.FC = () => {
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             <TextField
               size="small"
-              placeholder="搜索练习..."
+              label="搜索练习"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -373,11 +357,12 @@ const PracticeHistoryPage: React.FC = () => {
             />
 
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>语言</InputLabel>
+              <InputLabel id="history-language">语言</InputLabel>
               <Select
                 value={languageFilter}
+                labelId="history-language"
                 label="语言"
-                onChange={(e) => setLanguageFilter(e.target.value)}
+                onChange={(e) => { setLanguageFilter(e.target.value); setPage(1); }}
               >
                 <MenuItem value="">全部</MenuItem>
                 <MenuItem value="en">英语</MenuItem>
@@ -387,11 +372,12 @@ const PracticeHistoryPage: React.FC = () => {
             </FormControl>
 
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>难度</InputLabel>
+              <InputLabel id="history-difficulty">难度</InputLabel>
               <Select
                 value={difficultyFilter}
+                labelId="history-difficulty"
                 label="难度"
-                onChange={(e) => setDifficultyFilter(e.target.value)}
+                onChange={(e) => { setDifficultyFilter(e.target.value); setPage(1); }}
               >
                 <MenuItem value="">全部</MenuItem>
                 <MenuItem value="beginner">初级</MenuItem>
@@ -407,6 +393,7 @@ const PracticeHistoryPage: React.FC = () => {
                 setLanguageFilter('');
                 setDifficultyFilter('');
                 setSearchTerm('');
+                setPage(1);
               }}
             >
               清除筛选
@@ -415,8 +402,11 @@ const PracticeHistoryPage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {feedback && <Alert severity={feedback.severity} onClose={() => setFeedback(null)} sx={{ mb: 2 }}>{feedback.message}</Alert>}
+      {loadError && <Alert severity="error" action={<Button onClick={() => fetchPracticeHistory()}>重试</Button>}>无法加载练习历史。</Alert>}
+      {loading && <LinearProgress aria-label="正在加载练习历史" />}
       {/* Practice History Grid */}
-      {filteredHistory.length === 0 ? (
+      {!loading && !loadError && (filteredHistory.length === 0 ? (
         <Alert severity="info">
           {practiceHistory.length === 0 ? '还没有练习记录' : '没有符合筛选条件的练习记录'}
         </Alert>
@@ -547,7 +537,7 @@ const PracticeHistoryPage: React.FC = () => {
             </Grid>
           ))}
         </Grid>
-      )}
+      ))}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -571,7 +561,7 @@ const PracticeHistoryPage: React.FC = () => {
         <DialogTitle>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Psychology color="secondary" />
-            <Typography variant="h6">AI学习分析报告</Typography>
+            <Typography variant="h6" component="span">AI学习分析报告</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>

@@ -144,11 +144,7 @@ const MasteryStatsCard: React.FC<MasteryStatsCardProps> = ({ stats, language }) 
         </Typography>
 
         <Box display="flex" flexWrap="wrap" gap={1}>
-          <Chip 
-            label={`每日复习目标: ${stats.dailyReviewTarget} 词`}
-            color="primary"
-            variant="outlined"
-          />
+
           
           {stats.wordsNeedingReview > 0 && (
             <Chip 

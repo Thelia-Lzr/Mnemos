@@ -20,12 +20,10 @@
 
 Mnemos 启动后直接打开学习概览，以本地资料保存学习进度。
 
-- 🎯 **个性化学习** - 基于 AI 的智能学习路径推荐
+- 🎯 **个性化学习** - 按主要学习语言提供每日建议与快捷练习
 - 💬 **实时交互** - AI 对话、语法纠错和学习反馈
-- 📊 **进度追踪** - 详细的学习数据分析和能力评估
+- 📊 **进度追踪** - 练习历史、答题详情和语言能力资料
 - ⚙️ **AI 配置** - 自定义 Responses API、本机 Codex 或 Claude Code，支持按功能设置回退队列
-- 💳 **支付管理** - 充值、积分和交易记录
-- 🎓 **测试评估** - 多种题型的考试和评估系统
 
 ---
 
@@ -74,6 +72,14 @@ HOST=127.0.0.1 npm --prefix frontend start
 - **功能路由** 在默认队列内添加主配置，再按顺序添加备用配置。每个功能可以另设队列，清空功能队列后继承默认。保存后，后续请求按新顺序执行。
 
 ---
+
+## 工作台功能范围
+
+Mnemos 使用你配置的 AI 提供方。第三方模型费用由对应提供方决定。学习工作台已移除支付、充值和套餐管理，旧版数据库记录仍可随数据库一同迁移。
+
+- AI 对话支持文本消息和 UTF-8 文本资料分析。
+- 能力页面显示自设的水平和已有的评估结果。综合评估与重新评估暂未开放。
+- PK 页面可查看历史对战和排行榜。本地工作台只有一个活动资料，多人匹配暂未开放。
 
 ## 📁 项目结构
 
@@ -164,6 +170,17 @@ Mnemos/
 ---
 
 ## 🧪 测试
+
+```bash
+npm ci
+npm --prefix frontend ci
+npx playwright install
+npx playwright test tests/frontend-smoke.spec.ts
+bash scripts/test-workspace.sh
+```
+
+冒烟测试在 Chromium、Firefox 和 WebKit 验证 AI 配置、并发保存冲突、移动端键盘导航与聊天失败重试。完整浏览器测试通过 Docker 启动临时 PostgreSQL 和 Redis，并使用本地模拟 Responses 服务验证学习流程与 AI 回退。脚本会清理自己创建的容器。
+
 
 ```bash
 make test-unit PYTHON_BIN=.venv/bin/python

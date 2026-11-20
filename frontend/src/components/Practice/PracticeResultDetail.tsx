@@ -176,7 +176,7 @@ export const PracticeResultDetail: React.FC<PracticeResultDetailProps> = ({
   };
 
   const formatTime = (milliseconds: number) => {
-    const seconds = Math.floor(milliseconds / 1000);
+    const seconds = Math.floor((milliseconds ?? 0) / 1000);
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -239,7 +239,10 @@ export const PracticeResultDetail: React.FC<PracticeResultDetailProps> = ({
         }
       }
       
-      const isCorrect = normalizedUserAnswer === question.correctAnswer;
+      const normalize = (answer: string) => answer.trim().toLowerCase();
+      const expected = question.correctAnswer;
+      const isCorrect = normalize(userAnswer) === normalize(expected) ||
+        (!question.options.includes(expected) && normalize(normalizedUserAnswer) === normalize(expected));
       return {
         question,
         userAnswer,
@@ -532,7 +535,8 @@ export const PracticeResultDetail: React.FC<PracticeResultDetailProps> = ({
                     {result.question.options.map((option, optionIndex) => {
                       // Convert option index to letter (0->A, 1->B, 2->C, 3->D)
                       const optionLetter = String.fromCharCode(65 + optionIndex);
-                      const isCorrectOption = optionLetter === result.question.correctAnswer;
+                      const expected = result.question.correctAnswer;
+                      const isCorrectOption = option === expected || (!result.question.options.includes(expected) && optionLetter === expected);
                       
                       // Check if this option is the user's choice
                       // User answer could be either the option text or the option letter
@@ -660,7 +664,7 @@ export const PracticeResultDetail: React.FC<PracticeResultDetailProps> = ({
         <DialogTitle>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Psychology color="secondary" />
-            <Typography variant="h6">AI学习分析报告</Typography>
+            <Typography variant="h6" component="span">AI学习分析报告</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>

@@ -12,10 +12,7 @@ export interface DailyRecommendationState {
   loading: boolean;
   error: string | null;
   generatingRecommendation: boolean;
-  generatingPractice: boolean;
   submittingFeedback: boolean;
-  lastGeneratedTaskId: string | null;
-  lastPracticeTaskId: string | null;
 }
 
 const initialState: DailyRecommendationState = {
@@ -24,10 +21,7 @@ const initialState: DailyRecommendationState = {
   loading: false,
   error: null,
   generatingRecommendation: false,
-  generatingPractice: false,
   submittingFeedback: false,
-  lastGeneratedTaskId: null,
-  lastPracticeTaskId: null,
 };
 
 // Async thunks
@@ -53,39 +47,18 @@ export const generateRecommendation = createAsyncThunk(
   }
 );
 
-export const generateRecommendationAsync = createAsyncThunk(
-  'dailyRecommendation/generateRecommendationAsync',
-  async (language: string, { rejectWithValue }) => {
-    try {
-      return await DailyRecommendationApi.generateRecommendationAsync(language);
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to start recommendation generation');
-    }
-  }
-);
-
-export const generateQuickPractice = createAsyncThunk(
-  'dailyRecommendation/generateQuickPractice',
-  async ({ language, practiceOptionId }: { language: string; practiceOptionId: string }, { rejectWithValue }) => {
-    try {
-      return await DailyRecommendationApi.generateQuickPractice(language, practiceOptionId);
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to generate quick practice');
-    }
-  }
-);
-
 export const submitFeedback = createAsyncThunk(
   'dailyRecommendation/submitFeedback',
   async (
-    { language, feedback }: { 
-      language: string; 
+    { language, recommendationId, feedback }: {
+      language: string;
+      recommendationId: string;
       feedback: Omit<RecommendationFeedback, 'submittedAt'> 
     }, 
     { rejectWithValue }
   ) => {
     try {
-      await DailyRecommendationApi.submitFeedback(language, feedback);
+      await DailyRecommendationApi.submitFeedback(language, recommendationId, feedback);
       return feedback;
     } catch (error) {
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to submit feedback');
@@ -137,10 +110,6 @@ const dailyRecommendationSlice = createSlice({
     clearCurrentRecommendation: (state) => {
       state.currentRecommendation = null;
     },
-    clearTaskIds: (state) => {
-      state.lastGeneratedTaskId = null;
-      state.lastPracticeTaskId = null;
-    },
     updateRecommendationViewed: (state, action: PayloadAction<{ date?: string }>) => {
       if (state.currentRecommendation) {
         const targetDate = action.payload.date || new Date().toISOString().split('T')[0];
@@ -185,36 +154,6 @@ const dailyRecommendationSlice = createSlice({
       })
       .addCase(generateRecommendation.rejected, (state, action) => {
         state.generatingRecommendation = false;
-        state.error = action.payload as string;
-      })
-
-      // Generate recommendation (async)
-      .addCase(generateRecommendationAsync.pending, (state) => {
-        state.generatingRecommendation = true;
-        state.error = null;
-      })
-      .addCase(generateRecommendationAsync.fulfilled, (state, action) => {
-        state.generatingRecommendation = false;
-        state.lastGeneratedTaskId = action.payload.taskId;
-        state.error = null;
-      })
-      .addCase(generateRecommendationAsync.rejected, (state, action) => {
-        state.generatingRecommendation = false;
-        state.error = action.payload as string;
-      })
-
-      // Generate quick practice
-      .addCase(generateQuickPractice.pending, (state) => {
-        state.generatingPractice = true;
-        state.error = null;
-      })
-      .addCase(generateQuickPractice.fulfilled, (state, action) => {
-        state.generatingPractice = false;
-        state.lastPracticeTaskId = action.payload.taskId;
-        state.error = null;
-      })
-      .addCase(generateQuickPractice.rejected, (state, action) => {
-        state.generatingPractice = false;
         state.error = action.payload as string;
       })
 
@@ -288,7 +227,6 @@ const dailyRecommendationSlice = createSlice({
 export const {
   clearError,
   clearCurrentRecommendation,
-  clearTaskIds,
   updateRecommendationViewed,
   updateRecommendationFeedback,
 } = dailyRecommendationSlice.actions;

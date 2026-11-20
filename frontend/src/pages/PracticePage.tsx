@@ -33,6 +33,7 @@ import {
     Typography
 } from '@mui/material';
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PracticeGroup } from '../components/Practice/PracticeGroup';
 import practiceApi, { PracticeGroup as PracticeGroupData } from '../services/practiceApi';
 import ErrorHandler from '../utils/errorHandler';
@@ -52,23 +53,26 @@ interface PracticeResult {
 }
 
 const PracticePage: React.FC = () => {
+  const recommendation = useLocation().state?.recommendation;
   const [practiceGroups, setPracticeGroups] = useState<PracticeGroupData[]>([]);
+  const [openingGroupId, setOpeningGroupId] = useState<string | null>(null);
   const [currentPractice, setCurrentPractice] = useState<PracticeGroupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(Boolean(recommendation));
   const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Form state for creating new practice
   const [newPracticeForm, setNewPracticeForm] = useState({
-    language: 'en',
-    difficulty: 'intermediate',
-    type: 'general',
+    language: ['en', 'ja', 'fr'].includes(recommendation?.language) ? recommendation.language as string : 'en',
+    difficulty: ['beginner', 'intermediate', 'advanced'].includes(recommendation?.difficulty) ? recommendation.difficulty as string : 'intermediate',
+    type: ['vocabulary', 'grammar', 'comprehensive'].includes(recommendation?.type) ? recommendation.type as string : 'general',
     focusAreas: [] as string[]
   });
 
   // AI practice generation state
-  const [additionalPrompt, setAdditionalPrompt] = useState('');
+  const [additionalPrompt, setAdditionalPrompt] = useState(typeof recommendation?.prompt === 'string' ? recommendation.prompt : '');
 
   // Generating practice groups (with taskId)
   const [generatingPractices, setGeneratingPractices] = useState<Map<string, {
@@ -208,6 +212,7 @@ const PracticePage: React.FC = () => {
   const handleCreateEnhancedPractice = async () => {
     try {
       setGenerating(true);
+      setGenerationError(null);
 
       const result = await practiceApi.createEnhancedPracticeGroup({
         language: newPracticeForm.language,
@@ -235,15 +240,28 @@ const PracticePage: React.FC = () => {
       
     } catch (err) {
       const errorMessage = ErrorHandler.getErrorMessage(err);
-      setError(errorMessage);
-      ErrorHandler.logError(err, 'Create Enhanced Practice Group');
+      setGenerationError(errorMessage);
     } finally {
       setGenerating(false);
     }
   };
 
-  const handleStartPractice = (practiceGroup: PracticeGroupData) => {
-    setCurrentPractice(practiceGroup);
+  const handleStartPractice = async (practiceGroup: PracticeGroupData) => {
+    if (openingGroupId) return;
+    setOpeningGroupId(practiceGroup.id);
+    setError(null);
+    try {
+      const group = practiceGroup.questions?.length ? practiceGroup : await practiceApi.getPracticeGroup(practiceGroup.id);
+      if (!group.questions.length) {
+        setError('这组练习没有可作答的题目，请生成一组新练习。');
+        return;
+      }
+      setCurrentPractice(group);
+    } catch (error) {
+      setError(ErrorHandler.getErrorMessage(error));
+    } finally {
+      setOpeningGroupId(null);
+    }
   };
 
   const handlePracticeComplete = (result: PracticeResult) => {
@@ -412,7 +430,7 @@ const PracticePage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<Add />}
-            onClick={() => setShowCreateDialog(true)}
+            onClick={() => { setGenerationError(null); setShowCreateDialog(true); }}
           >
             创建练习
           </Button>
@@ -441,7 +459,7 @@ const PracticePage: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<Add />}
-              onClick={() => setShowCreateDialog(true)}
+              onClick={() => { setGenerationError(null); setShowCreateDialog(true); }}
             >
               创建练习
             </Button>
@@ -575,9 +593,10 @@ const PracticePage: React.FC = () => {
                     variant="contained"
                     fullWidth
                     startIcon={getTypeIcon(group.type)}
+                    disabled={Boolean(openingGroupId)}
                     onClick={() => handleStartPractice(group)}
                   >
-                    开始练习
+                    {openingGroupId === group.id ? '正在打开…' : '开始练习'}
                   </Button>
                 </Box>
               </Card>
@@ -590,12 +609,14 @@ const PracticePage: React.FC = () => {
       <Dialog open={showCreateDialog} onClose={() => setShowCreateDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>创建新练习</DialogTitle>
         <DialogContent>
+          {generationError && <Alert severity="error" sx={{ mb: 2 }}>{generationError}</Alert>}
           <Stack spacing={3} sx={{ mt: 1 }}>
             {/* Basic Practice Configuration - Always Visible */}
             <FormControl fullWidth>
-              <InputLabel>语言</InputLabel>
+              <InputLabel id="practice-language">语言</InputLabel>
               <Select
                 value={newPracticeForm.language}
+                labelId="practice-language"
                 label="语言"
                 onChange={(e) => setNewPracticeForm(prev => ({ ...prev, language: e.target.value }))}
               >
@@ -606,9 +627,10 @@ const PracticePage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel>难度</InputLabel>
+              <InputLabel id="practice-difficulty">难度</InputLabel>
               <Select
                 value={newPracticeForm.difficulty}
+                labelId="practice-difficulty"
                 label="难度"
                 onChange={(e) => setNewPracticeForm(prev => ({ ...prev, difficulty: e.target.value }))}
               >
@@ -619,9 +641,10 @@ const PracticePage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel>类型</InputLabel>
+              <InputLabel id="practice-type">类型</InputLabel>
               <Select
                 value={newPracticeForm.type}
+                labelId="practice-type"
                 label="类型"
                 onChange={(e) => setNewPracticeForm(prev => ({ ...prev, type: e.target.value }))}
               >

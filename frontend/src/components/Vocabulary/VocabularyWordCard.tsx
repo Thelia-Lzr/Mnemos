@@ -129,7 +129,7 @@ const VocabularyWordCard: React.FC<VocabularyWordCardProps> = ({
             )}
           </Box>
           
-          <IconButton onClick={handleMenuOpen} size="small">
+          <IconButton aria-label={`${word.word} 的操作`} onClick={handleMenuOpen} size="small">
             <MoreVertIcon />
           </IconButton>
         </Box>

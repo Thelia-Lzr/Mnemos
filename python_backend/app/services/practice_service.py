@@ -60,6 +60,8 @@ class PracticeService:
             question_count=question_count,
             capability=capability,
         )
+        if focus_areas:
+            prompt += "\n本次练习重点：" + "、".join(focus_areas)
 
         # 调用 AI 生成练习
         response = await call_ai(
@@ -73,6 +75,10 @@ class PracticeService:
         except json.JSONDecodeError:
             practice_data = {"questions": []}
 
+        questions_data = practice_data.get("questions") if isinstance(practice_data, dict) else None
+        if not isinstance(questions_data, list) or not questions_data:
+            raise ValueError("模型没有返回有效的练习题，请调整配置后重试。")
+
         # 创建练习组
         practice_group = PracticeGroup(
             user_id=uuid.UUID(user_id),
@@ -81,14 +87,13 @@ class PracticeService:
             language=language,
             difficulty=difficulty,
             type="ai_generated",
-            estimated_duration=question_count * 2,  # 每题约 2 分钟
+            estimated_duration=min(len(questions_data), question_count) * 2,  # 每题约 2 分钟
             focus_areas=focus_areas or skill_areas,
         )
         self.db.add(practice_group)
         await self.db.flush()
 
         # 创建问题
-        questions_data = practice_data.get("questions", [])
         for idx, q_data in enumerate(questions_data[:question_count]):
             question = Question(
                 practice_group_id=practice_group.id,
@@ -130,7 +135,7 @@ class PracticeService:
         """
         # 获取练习组
         result = await self.db.execute(
-            select(PracticeGroup).where(PracticeGroup.id == uuid.UUID(practice_group_id))
+            select(PracticeGroup).where(PracticeGroup.id == uuid.UUID(practice_group_id), PracticeGroup.user_id == uuid.UUID(user_id))
         )
         practice_group = result.scalar_one_or_none()
 
@@ -149,15 +154,24 @@ class PracticeService:
         correct_answers = 0
         wrong_answers = []
 
+        answered_questions = set()
         for answer in answers:
             question_id = answer.get("questionId")
+            if question_id in answered_questions:
+                continue
+            answered_questions.add(question_id)
             user_answer = answer.get("userAnswer")
             time_spent = answer.get("timeSpent", 0)
 
             # 找到对应问题
             question = next((q for q in questions if str(q.id) == question_id), None)
             if question:
-                is_correct = str(user_answer).strip().lower() == str(question.correct_answer).strip().lower()
+                expected = (question.correct_answer or "").strip()
+                if expected not in question.options and len(expected) == 1 and "A" <= expected <= "Z":
+                    option_index = ord(expected) - ord("A")
+                    if option_index < len(question.options):
+                        expected = question.options[option_index]
+                is_correct = str(user_answer or "").strip().casefold() == expected.strip().casefold()
                 if is_correct:
                     correct_answers += 1
                 else:
@@ -219,12 +233,19 @@ class PracticeService:
         """
         # 获取练习结果
         result = await self.db.execute(
-            select(PracticeResult).where(PracticeResult.id == uuid.UUID(practice_result_id))
+            select(PracticeResult).where(PracticeResult.id == uuid.UUID(practice_result_id), PracticeResult.user_id == uuid.UUID(user_id))
         )
         practice_result = result.scalar_one_or_none()
 
         if not practice_result:
             raise ValueError("Practice result not found")
+
+        existing_analysis = await self.db.scalar(select(PracticeAIAnalysis).where(
+            PracticeAIAnalysis.practice_result_id == practice_result.id,
+            PracticeAIAnalysis.user_id == practice_result.user_id,
+        ))
+        if existing_analysis:
+            return existing_analysis
 
         # 构建分析提示词
 
@@ -233,7 +254,7 @@ class PracticeService:
 - 总题目数：{practice_result.total_questions}
 - 正确答案数：{practice_result.correct_answers}
 - 正确率：{practice_result.accuracy}%
-- 用时：{practice_result.total_time or 0}秒
+- 用时：{(practice_result.total_time or 0) // 1000}秒
 
 弱项：{', '.join(practice_result.weak_areas or [])}
 错题摘要：{practice_result.wrong_answers_summary}
@@ -364,14 +385,13 @@ class PracticeService:
         """构建练习生成提示词"""
         level_info = ""
         if capability:
-            level_info = f"""
-用户当前水平：{capability.current_level}
-细分能力：
-- 听力：{capability.listening_level}/100
-- 口语：{capability.speaking_level}/100
-- 阅读：{capability.reading_level}/100
-- 写作：{capability.writing_level}/100
-"""
+            level_info = f"用户当前水平：{capability.current_level}"
+            if capability.last_assessed_at:
+                levels = {
+                    "听力": capability.listening_level, "口语": capability.speaking_level,
+                    "阅读": capability.reading_level, "写作": capability.writing_level,
+                }
+                level_info += "\n" + "、".join(f"{name} {value}/100" for name, value in levels.items() if value is not None)
 
         return f"""生成{language}练习题目。
 
@@ -380,10 +400,10 @@ class PracticeService:
 题目数量：{question_count}
 {level_info}
 请以 JSON 格式返回，每个问题包含：
-- type: multiple_choice|fill_in_blank|true_false|matching
+- type: multiple_choice|fill_in_blank|true_false
 - content: 题目内容
 - options: [选项列表]（选择题需要）
-- correct_answer: 正确答案
+- correct_answer: 正确答案文本（选择题必须与其中一个选项一致）
 - explanation: 解释
 - vocabulary_words: 相关单词
 - grammar_points: 相关语法点

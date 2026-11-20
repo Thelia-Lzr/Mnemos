@@ -19,7 +19,6 @@ import PKArenaPage from './pages/PKArenaPage';
 import ProfilePage from './pages/ProfilePage';
 import PracticeHistoryPage from './pages/PracticeHistoryPage';
 import AssessmentPage from './pages/AssessmentPage';
-import RechargePage from './pages/RechargePage';
 import AdminPage from './pages/AdminPage';
 import Layout from './components/Layout/Layout';
 import { useAppDispatch } from './store/hooks';
@@ -53,13 +52,13 @@ function App() {
       <CssBaseline />
       <ErrorBoundary>
         <NotificationProvider>
-          <Container maxWidth={false} disableGutters sx={{ height: '100vh' }}>
+          <Container maxWidth={false} disableGutters sx={{ height: '100dvh' }}>
             <Routes>
               <Route path="/" element={<Layout />}>
                 <Route 
                   index 
                   element={
-                    <PageTransition type="slide" direction="up">
+                    <PageTransition>
                       <DashboardPage />
                     </PageTransition>
                   } 
@@ -67,7 +66,7 @@ function App() {
                 <Route 
                   path="dashboard" 
                   element={
-                    <PageTransition type="slide" direction="up">
+                    <PageTransition>
                       <DashboardPage />
                     </PageTransition>
                   } 
@@ -75,7 +74,7 @@ function App() {
                 <Route 
                   path="chat" 
                   element={
-                    <PageTransition type="slide" direction="left">
+                    <PageTransition>
                       <ChatPage />
                     </PageTransition>
                   } 
@@ -83,7 +82,7 @@ function App() {
                 <Route 
                   path="practice" 
                   element={
-                    <PageTransition type="slide" direction="left">
+                    <PageTransition>
                       <PracticePage />
                     </PageTransition>
                   } 
@@ -91,7 +90,7 @@ function App() {
                 <Route 
                   path="practice-history" 
                   element={
-                    <PageTransition type="slide" direction="left">
+                    <PageTransition>
                       <PracticeHistoryPage />
                     </PageTransition>
                   } 
@@ -99,7 +98,7 @@ function App() {
                 <Route 
                   path="assessment" 
                   element={
-                    <PageTransition type="slide" direction="left">
+                    <PageTransition>
                       <AssessmentPage />
                     </PageTransition>
                   } 
@@ -107,7 +106,7 @@ function App() {
                 <Route 
                   path="vocabulary" 
                   element={
-                    <PageTransition type="slide" direction="left">
+                    <PageTransition>
                       <VocabularyPage />
                     </PageTransition>
                   } 
@@ -115,7 +114,7 @@ function App() {
                 <Route 
                   path="pk" 
                   element={
-                    <PageTransition type="slide" direction="left">
+                    <PageTransition>
                       <PKArenaPage />
                     </PageTransition>
                   } 
@@ -123,23 +122,15 @@ function App() {
                 <Route 
                   path="profile" 
                   element={
-                    <PageTransition type="slide" direction="right">
+                    <PageTransition>
                       <ProfilePage />
-                    </PageTransition>
-                  } 
-                />
-                <Route 
-                  path="recharge" 
-                  element={
-                    <PageTransition type="slide" direction="right">
-                      <RechargePage />
                     </PageTransition>
                   } 
                 />
                 <Route 
                   path="admin" 
                   element={
-                    <PageTransition type="zoom">
+                    <PageTransition>
                       <AdminPage />
                     </PageTransition>
                   } 

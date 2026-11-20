@@ -27,6 +27,7 @@ class DailyRecommendationResponse(BaseModel):
     viewedAt: Optional[datetime] = None
     feedbackRating: Optional[int] = None
     feedbackIsHelpful: Optional[bool] = None
+    feedbackComments: Optional[str] = None
     quickPracticeOptions: Optional[List[dict]] = None
 
     class Config:

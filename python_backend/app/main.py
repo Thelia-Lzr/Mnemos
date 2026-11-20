@@ -21,7 +21,6 @@ from app.api.routes import (
     practice,
     vocabulary,
     pk,
-    payment,
     assessment,
     daily_recommendations,
     tasks,
@@ -99,7 +98,6 @@ app.include_router(chat.router)
 app.include_router(practice.router)
 app.include_router(vocabulary.router)
 app.include_router(pk.router)
-app.include_router(payment.router)
 app.include_router(assessment.router)
 app.include_router(daily_recommendations.router)
 app.include_router(tasks.router)

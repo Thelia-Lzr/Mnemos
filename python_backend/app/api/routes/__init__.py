@@ -6,7 +6,6 @@ from app.api.routes.chat import router as chat_router
 from app.api.routes.practice import router as practice_router
 from app.api.routes.vocabulary import router as vocabulary_router
 from app.api.routes.pk import router as pk_router
-from app.api.routes.payment import router as payment_router
 from app.api.routes.assessment import router as assessment_router
 from app.api.routes.daily_recommendations import router as daily_recommendations_router
 from app.api.routes.tasks import router as tasks_router
@@ -20,7 +19,6 @@ __all__ = [
     "practice_router",
     "vocabulary_router",
     "pk_router",
-    "payment_router",
     "assessment_router",
     "daily_recommendations_router",
     "tasks_router",

@@ -2,11 +2,13 @@
 聊天路由
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 import json
 import uuid
 
+from app.core.config import settings
 from app.schemas.ai import AIFeature
 from app.services.ai_service import AIUnavailable, call_ai
 from app.api.deps import get_db, get_workspace_user
@@ -24,8 +26,17 @@ from app.schemas.chat import (
 )
 from app.services.chat_service import ChatService, get_chat_service
 from app.models.user import User
+from app.models.chat_message import ChatMessage
 
 router = APIRouter(prefix="/api/chat", tags=["聊天"])
+
+
+def serialize_message(message: ChatMessage) -> ChatMessageResponse:
+    return ChatMessageResponse(
+        id=str(message.id), userId=str(message.user_id), content=message.content,
+        type=message.type, timestamp=message.created_at,
+        processingStatus=message.processing_status, aiResponse=message.ai_response,
+    )
 
 
 @router.post("/message", response_model=SendMessageResponse)
@@ -39,7 +50,7 @@ async def send_message(
     chat_service = get_chat_service(db)
 
     try:
-        message = await chat_service.send_message(
+        user_message, message = await chat_service.send_message(
             user_id=str(current_user.id),
             content=request.content,
             language=request.language,
@@ -48,22 +59,15 @@ async def send_message(
 
         return SendMessageResponse(
             success=True,
-            message=ChatMessageResponse(
-                id=str(message.id),
-                userId=str(message.user_id),
-                content=message.content,
-                type=message.type,
-                timestamp=message.created_at,
-                processingStatus=message.processing_status,
-                aiResponse=message.ai_response,
-            ),
+            message=serialize_message(message),
+            userMessage=serialize_message(user_message),
         )
     except AIUnavailable:
         raise
     except Exception as e:
         return SendMessageResponse(
             success=False,
-            error=str(e),
+            error="无法完成请求，请稍后重试。",
         )
 
 
@@ -78,28 +82,28 @@ async def upload_material(
     """上传学习材料"""
     chat_service = get_chat_service(db)
 
-    # 读取文件内容
-    content = await file.read()
-    text_content = content.decode("utf-8")
+    max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"文本文件不能超过 {settings.MAX_FILE_SIZE_MB} MB。")
+    try:
+        text_content = content.decode("utf-8-sig").strip()
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="请上传 UTF-8 编码的文本文件。")
+    if not text_content or "\x00" in text_content:
+        raise HTTPException(status_code=400, detail="请上传非空的 UTF-8 文本文件。")
 
     try:
-        result = await chat_service.upload_material(
-            user_id=str(current_user.id),
-            content=text_content,
-            language=language,
+        message = await chat_service.upload_material(
+            user_id=str(current_user.id), content=text_content, language=language,
         )
-
-        return UploadMaterialResponse(
-            success=True,
-            extractedContent=result.get("content", ""),
-            data=result,
-        )
+        return UploadMaterialResponse(success=True, message=serialize_message(message), extractedContent=message.content)
     except AIUnavailable:
         raise
     except Exception as e:
         return UploadMaterialResponse(
             success=False,
-            error=str(e),
+            error="无法完成请求，请稍后重试。",
         )
 
 
@@ -116,27 +120,31 @@ async def get_chat_history(
 
     messages = await chat_service.get_chat_history(
         user_id=str(current_user.id),
-        limit=limit,
+        limit=limit + 1,
         offset=offset,
     )
 
     return ChatHistoryResponse(
         success=True,
-        messages=[
-            ChatMessageResponse(
-                id=str(msg.id),
-                userId=str(msg.user_id),
-                content=msg.content,
-                type=msg.type,
-                timestamp=msg.created_at,
-                processingStatus=msg.processing_status,
-                aiResponse=msg.ai_response,
-            )
-            for msg in messages
-        ],
-        totalCount=len(messages),
-        hasMore=len(messages) == limit,
+        messages=[serialize_message(message) for message in messages[:limit]],
+        totalCount=min(len(messages), limit),
+        hasMore=len(messages) > limit,
     )
+
+
+@router.delete("/message/{message_id}")
+async def delete_message(
+    message_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_workspace_user),
+):
+    result = await db.execute(delete(ChatMessage).where(
+        ChatMessage.id == message_id, ChatMessage.user_id == current_user.id,
+    ))
+    if not result.rowcount:
+        raise HTTPException(status_code=404, detail="消息已不存在。")
+    await db.commit()
+    return {"success": True}
 
 
 @router.delete("/history")
@@ -208,11 +216,6 @@ async def execute_function(
             "name": "check_progress",
             "description": "查看学习进度",
             "parameters": {"language": str},
-        },
-        {
-            "name": "check_credits",
-            "description": "查看积分余额",
-            "parameters": {},
         },
         {
             "name": "add_vocabulary",
@@ -325,12 +328,6 @@ async def get_available_functions():
                 "parameters": {
                     "language": "目标语言",
                 },
-                "isPrivacySensitive": False,
-            },
-            {
-                "intent": "check_credits",
-                "description": "查看积分余额",
-                "parameters": {},
                 "isPrivacySensitive": False,
             },
         ],

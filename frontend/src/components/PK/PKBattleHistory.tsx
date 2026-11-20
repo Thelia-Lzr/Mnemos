@@ -35,8 +35,8 @@ interface BattleHistoryEntry {
   player1Time: number;
   player2Time: number;
   winnerId?: string;
-  player1MMRChange: number;
-  player2MMRChange: number;
+  player1MmrChange: number;
+  player2MmrChange: number;
   createdAt: string;
 }
 
@@ -121,7 +121,7 @@ const PKBattleHistory: React.FC<PKBattleHistoryProps> = ({ language }) => {
   };
 
   const getMyMMRChange = (battle: BattleHistoryEntry) => {
-    return battle.player1Id === currentUserId ? battle.player1MMRChange : battle.player2MMRChange;
+    return battle.player1Id === currentUserId ? battle.player1MmrChange : battle.player2MmrChange;
   };
 
 

@@ -23,6 +23,5 @@ export const ROUTES = {
   VOCABULARY: '/vocabulary',
   PK: '/pk',
   PROFILE: '/profile',
-  RECHARGE: '/recharge',
   ADMIN: '/admin',
 } as const;

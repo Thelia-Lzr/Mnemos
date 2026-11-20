@@ -21,8 +21,8 @@ from app.schemas.user import (
     UserLearningLanguageUpdate,
     UserLearningLanguageResponse,
 )
+from app.models.practice import PracticeGroup, PracticeResult
 from app.models.user import User, UserPreferences, UserCapability, UserLearningLanguage
-from app.models.payment import UserCredit
 from app.core.database import AsyncSession
 
 router = APIRouter(prefix="/api/users", tags=["用户"])
@@ -141,10 +141,32 @@ async def get_learning_status(
         )
     )
     languages = result.scalars().all()
+    completed = (PracticeResult.user_id == current_user.id, PracticeResult.completed_at.is_not(None))
+    count, total_time_ms = (await db.execute(
+        select(func.count(PracticeResult.id), func.sum(PracticeResult.total_time)).where(*completed)
+    )).one()
+    recent_practices = (await db.execute(
+        select(PracticeResult, PracticeGroup.title)
+        .join(PracticeGroup, PracticeResult.practice_group_id == PracticeGroup.id)
+        .where(*completed)
+        .order_by(PracticeResult.completed_at.desc(), PracticeResult.id)
+        .limit(5)
+    )).all()
 
     return {
         "success": True,
         "data": {
+            "completedPractices": count,
+            "totalPracticeMinutes": (total_time_ms or 0) // 60000,
+            "recentPractices": [
+                {
+                    "id": str(practice.id),
+                    "title": title,
+                    "accuracy": float(practice.accuracy),
+                    "completedAt": practice.completed_at.isoformat(),
+                }
+                for practice, title in recent_practices
+            ],
             "languages": [
                 {
                     "language": lang.language,

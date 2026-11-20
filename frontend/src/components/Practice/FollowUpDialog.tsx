@@ -66,7 +66,6 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [creditCost, setCreditCost] = useState<number | null>(null);
 
   const handleSubmit = async () => {
     if (!followUpQuestion.trim()) return;
@@ -76,7 +75,6 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
     setError(null);
     setResponse(null);
     setStreamingContent('');
-    setCreditCost(null);
 
     try {
       if (type === 'question' && questionData) {
@@ -92,9 +90,6 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
           },
           (chunk: string) => {
             setStreamingContent(prev => prev + chunk);
-          },
-          (cost: number) => {
-            setCreditCost(cost);
           },
           () => {
             setIsStreaming(false);
@@ -123,9 +118,6 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
           (chunk: string) => {
             setStreamingContent(prev => prev + chunk);
           },
-          (cost: number) => {
-            setCreditCost(cost);
-          },
           () => {
             setIsStreaming(false);
             setLoading(false);
@@ -153,12 +145,11 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
     setError(null);
     setStreamingContent('');
     setIsStreaming(false);
-    setCreditCost(null);
     onClose();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSubmit();
     }
@@ -219,7 +210,7 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
             onChange={(e) => setFollowUpQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading}
-            helperText="按 Enter 发送，Shift+Enter 换行 • 消耗 1 积分"
+            helperText="按 Enter 发送，Shift+Enter 换行"
           />
         </Box>
 
@@ -236,14 +227,6 @@ const FollowUpDialog: React.FC<FollowUpDialogProps> = ({
               <Typography variant="h6" color="primary">
                 AI 回答
               </Typography>
-              {(creditCost !== null || response?.creditCost) && (
-                <Chip 
-                  label={`消耗 ${creditCost || response?.creditCost} 积分`} 
-                  size="small" 
-                  color="primary" 
-                  variant="outlined" 
-                />
-              )}
               {isStreaming && (
                 <CircularProgress size={20} />
               )}

@@ -35,7 +35,7 @@ export interface MasteryStats {
   masteredWords: number;
   averageMasteryScore: number;
   wordsNeedingReview: number;
-  dailyReviewTarget: number;
+
 }
 
 export interface WordExtractionResult {
@@ -47,6 +47,7 @@ export interface WordExtractionResult {
 
 export interface ReviewSchedule {
   wordId: string;
+  word: string;
   nextReviewAt: string;
   priority: number;
   estimatedDifficulty: number;
@@ -89,6 +90,49 @@ export interface PracticeResult {
   score: number;
 }
 
+type WordResponse = VocabularyWord & {
+  part_of_speech?: string;
+  mastery_level: VocabularyWord['masteryLevel'];
+  mastery_score: number;
+  reviewCount: number;
+  lastReviewScore: number;
+};
+
+const normalizeWord = (word: WordResponse): VocabularyWord => ({
+  ...word,
+  partOfSpeech: word.part_of_speech,
+  masteryLevel: word.mastery_level,
+  masteryScore: word.mastery_score,
+  forgettingCurveParams: {
+    initialStrength: 0,
+    decayRate: 0,
+    reviewCount: word.reviewCount,
+    lastReviewScore: word.lastReviewScore,
+  },
+});
+
+interface PracticeResponse {
+  words: WordResponse[];
+  questions: { word_id: string; word: string; content: string; options: string[]; correct_answer: string; explanation?: string }[];
+}
+
+function normalizePractice(raw: PracticeResponse): VocabularyPracticeGroup {
+  const words = raw.words.map(normalizeWord);
+  const questions = raw.questions.flatMap((item, index): VocabularyQuestion[] => {
+    const targetWord = words.find((word) => word.id === item.word_id || word.word === item.word);
+    const options = Array.isArray(item.options) ? item.options : [];
+    const answer = item.correct_answer;
+    const correctAnswer = options.includes(answer) ? answer : /^[A-D]$/.test(answer) ? options[answer.charCodeAt(0) - 65] : undefined;
+    if (!targetWord || !item.content || !correctAnswer) return [];
+    return [{
+      id: String(index), type: 'definition_to_word', targetWord, question: item.content,
+      options, correctAnswer, explanation: item.explanation || `正确答案：${correctAnswer}`, difficulty: targetWord.difficulty,
+    }];
+  });
+  if (!questions.length) throw new Error('暂无可作答的词汇题，请检查词汇或稍后重试。');
+  return { id: crypto.randomUUID(), title: '词汇练习', description: '', words, questions, estimatedDuration: questions.length, focusAreas: [] };
+}
+
 export const vocabularyApi = {
   // Get user's vocabulary words
   getVocabularyWords: async (language: string, masteryLevel?: string): Promise<{ words: VocabularyWord[] }> => {
@@ -104,13 +148,14 @@ export const vocabularyApi = {
       : Array.isArray(payload)
         ? payload
         : [];
-    return { words };
+    return { words: words.map(normalizeWord) };
   },
 
   // Add words from text
   addWordsFromText: async (text: string, language: string): Promise<WordExtractionResult> => {
     const response = await api.post('/vocabulary/add-words', { text, language });
-    return response.data.data;
+    const newWordsAdded: VocabularyWord[] = response.data.data.map(normalizeWord);
+    return { words: newWordsAdded.map((word) => word.word), newWordsAdded, extractedCount: newWordsAdded.length, duplicateCount: 0 };
   },
 
   // Remove a word
@@ -129,7 +174,7 @@ export const vocabularyApi = {
   // Get mastery statistics
   getMasteryStats: async (language: string): Promise<MasteryStats> => {
     const response = await api.get(`/vocabulary/mastery-stats?language=${language}`);
-    return response.data.data;
+    return response.data;
   },
 
   // Get words needing review
@@ -180,14 +225,13 @@ export const vocabularyApi = {
     focusOnWeakWords?: boolean;
     includeReviewWords?: boolean;
   }): Promise<VocabularyPracticeGroup> => {
-    const response = await api.post('/vocabulary/generate-practice', options);
-    return response.data.data;
+    const response = await api.post<{ data: PracticeResponse }>('/vocabulary/generate-practice', options);
+    return normalizePractice(response.data.data);
   },
 
   // Generate adaptive practice
   generateAdaptivePractice: async (language: string): Promise<VocabularyPracticeGroup> => {
-    const response = await api.post('/vocabulary/generate-practice', { language });
-    return response.data.data;
+    return vocabularyApi.generateVocabularyPractice({ language, focusOnWeakWords: true, includeReviewWords: true });
   },
 
   // Submit practice results

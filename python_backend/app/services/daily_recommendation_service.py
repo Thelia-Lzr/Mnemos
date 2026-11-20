@@ -2,6 +2,7 @@
 每日推荐服务
 """
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import select
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, timedelta
@@ -68,6 +69,7 @@ class DailyRecommendationService:
         user_id: str,
         language: str,
         target_date: Optional[date] = None,
+        regenerate: bool = False,
     ) -> DailyLearningRecommendation:
         """
         生成每日推荐
@@ -84,7 +86,7 @@ class DailyRecommendationService:
 
         # 检查是否已存在
         existing = await self.get_recommendation_by_date(user_id, language, target)
-        if existing:
+        if existing and not regenerate:
             return existing
 
         # 获取用户数据
@@ -107,25 +109,31 @@ class DailyRecommendationService:
             )
 
             recommendation_data = json.loads(response["content"])
-        except AIUnavailable:
+            if not isinstance(recommendation_data, dict):
+                raise ValueError("Invalid recommendation response")
+        except (AIUnavailable, ValueError):
             recommendation_data = self._build_fallback_recommendation(
                 review_words=review_words,
                 level=capability.current_level if capability else "A1",
             )
 
-        # 创建推荐记录
-        recommendation = DailyLearningRecommendation(
-            user_id=uuid.UUID(user_id),
-            language=language,
-            date=target,
-            recommendation_data=recommendation_data,
-            quick_practice_options=recommendation_data.get("quick_practice_options", []),
-        )
-        self.db.add(recommendation)
+        recommendation_data.pop("feedback_followed_ids", None)
+        quick_options = recommendation_data.get("quick_practice_options") or []
+        if existing:
+            existing.recommendation_data = {
+                **recommendation_data,
+                "feedback_followed_ids": (existing.recommendation_data or {}).get("feedback_followed_ids", []),
+            }
+            existing.quick_practice_options = quick_options
+        else:
+            await self.db.execute(
+                insert(DailyLearningRecommendation).values(
+                    user_id=uuid.UUID(user_id), language=language, date=target,
+                    recommendation_data=recommendation_data, quick_practice_options=quick_options,
+                ).on_conflict_do_nothing(index_elements=["user_id", "language", "date"])
+            )
         await self.db.commit()
-        await self.db.refresh(recommendation)
-
-        return recommendation
+        return await self.get_recommendation_by_date(user_id, language, target)
 
     async def mark_as_viewed(
         self,

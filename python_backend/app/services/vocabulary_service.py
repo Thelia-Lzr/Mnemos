@@ -4,7 +4,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import json
 
@@ -118,6 +118,7 @@ class VocabularyService:
                     user_id=uuid.UUID(user_id),
                     word=word_data.get("word", ""),
                     language=language,
+                    mastery_score=0,
                     definition=word_data.get("definition", ""),
                     pronunciation=word_data.get("pronunciation", ""),
                     part_of_speech=word_data.get("part_of_speech", ""),
@@ -290,13 +291,15 @@ class VocabularyService:
         avg_result = await self.db.execute(avg_query)
         avg_score = avg_result.scalar() or 0
 
+        due = await self.db.scalar(total_query.where(VocabularyWord.next_review_at <= datetime.utcnow()))
         stats = {
             "total": total,
+            "due": due or 0,
             "average_score": float(avg_score),
             "by_level": {
-                str(row.mastery_level): count
-                for row, count in stats_rows
-                if row.mastery_level
+                str(level): count
+                for level, count in stats_rows
+                if level
             },
         }
 
@@ -386,6 +389,9 @@ class VocabularyService:
         language: str,
         word_ids: Optional[List[str]] = None,
         max_words: int = 10,
+        focus_on_weak_words: bool = True,
+        include_review_words: bool = True,
+        mastery_levels: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         生成词汇练习
@@ -408,17 +414,23 @@ class VocabularyService:
         if word_ids:
             query = query.where(VocabularyWord.id.in_([uuid.UUID(wid) for wid in word_ids]))
 
-        query = query.limit(max_words)
+        if mastery_levels:
+            query = query.where(VocabularyWord.mastery_level.in_(mastery_levels))
+        if include_review_words:
+            query = query.order_by(VocabularyWord.next_review_at.asc().nulls_last())
+        if focus_on_weak_words:
+            query = query.order_by(VocabularyWord.mastery_score.asc().nulls_first())
+        query = query.order_by(VocabularyWord.id).limit(max_words)
         result = await self.db.execute(query)
         words = list(result.scalars().all())
 
         if not words:
-            return {"questions": []}
+            return {"questions": [], "words": []}
 
         # 使用 AI 生成练习
 
         words_info = "\n".join([
-            f"- {w.word}: {w.definition} ({w.part_of_speech})"
+            f"- {w.id} | {w.word}: {w.definition} ({w.part_of_speech})"
             for w in words
         ])
 
@@ -426,10 +438,7 @@ class VocabularyService:
 
 {words_info}
 
-生成多种题型：
-1. 选择题（给出中文选英文）
-2. 填空题（完成句子）
-3. 匹配题（单词配对定义）
+为每个单词生成一道选择题。word_id 必须使用列表中该词的 ID，correct_answer 必须与一个选项的文本完全一致。
 
 以 JSON 格式返回：
 {{
@@ -456,7 +465,37 @@ class VocabularyService:
         except json.JSONDecodeError:
             practice_data = {"questions": []}
 
-        return practice_data
+        return {"questions": practice_data.get("questions") or [], "words": words}
+
+
+    async def record_practice(self, user_id: str, results: list) -> None:
+        word_ids = {result.wordId for result in results}
+        words = await self.db.scalars(
+            select(VocabularyWord).where(
+                VocabularyWord.id.in_(word_ids), VocabularyWord.user_id == uuid.UUID(user_id),
+            ).order_by(VocabularyWord.id).with_for_update()
+        )
+        by_id = {word.id: word for word in words}
+        if by_id.keys() != word_ids:
+            raise ValueError("词汇已不存在，请重新开始练习。")
+        now = datetime.now(timezone.utc)
+        for result in results:
+            word = by_id[result.wordId]
+            score = result.score if result.score is not None else (100 if result.isCorrect else 0)
+            delta = result.masteryDelta if result.masteryDelta is not None else (20 if result.isCorrect else -10)
+            mastery = max(0, min(100, (word.mastery_score or 0) + delta))
+            level, interval = next(
+                (level, days) for minimum, level, days in (
+                    (90, "mastered", 14), (70, "long_term", 7), (45, "short_term", 3), (0, "learning", 1)
+                ) if mastery >= minimum
+            )
+            word.mastery_score = mastery
+            word.mastery_level = level
+            word.review_count = (word.review_count or 0) + 1
+            word.last_review_score = score
+            word.last_reviewed_at = now
+            word.next_review_at = now + timedelta(days=interval if result.isCorrect else 1)
+        await self.db.commit()
 
 
 def get_vocabulary_service(db: AsyncSession) -> VocabularyService:

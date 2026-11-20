@@ -269,9 +269,10 @@ class PKBattleService:
         self,
         user_id: str,
         limit: int = 20,
+        language: Optional[str] = None,
     ) -> List[PKBattle]:
         """获取对战历史"""
-        result = await self.db.execute(
+        query = (
             select(PKBattle)
             .where(
                 (PKBattle.player1_id == uuid.UUID(user_id)) |
@@ -281,7 +282,9 @@ class PKBattleService:
             .order_by(PKBattle.end_time.desc())
             .limit(limit)
         )
-        return list(result.scalars().all())
+        if language:
+            query = query.where(PKBattle.language == language)
+        return list((await self.db.scalars(query)).all())
 
     async def get_user_mmr(
         self,

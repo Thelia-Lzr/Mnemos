@@ -34,49 +34,8 @@ async def find_match(
     request: PKMatchRequest,
     current_user: User = Depends(get_workspace_user),
 ):
-    """寻找 PK 对手"""
-    pk_service = get_pk_battle_service(db)
-
-    # 获取或创建用户 MMR
-    mmr_result = await db.execute(
-        select(UserMMR).where(
-            UserMMR.user_id == uuid.UUID(str(current_user.id)),
-            UserMMR.language == request.language,
-        )
-    )
-    user_mmr = mmr_result.scalar_one_or_none()
-    mmr = user_mmr.current_mmr if user_mmr else 1000
-
-    try:
-        match_request = await pk_service.find_match(
-            user_id=str(current_user.id),
-            language=request.language,
-            mmr=mmr,
-        )
-
-        if match_request:
-            # 仍在匹配中
-            return {
-                "success": True,
-                "data": {
-                    "status": "searching",
-                    "id": str(match_request.id),
-                    "requestId": str(match_request.id),
-                    "estimatedWaitTime": 30,
-                },
-                "message": "Looking for opponent...",
-            }
-        else:
-            # 已找到对手（通过 WebSocket 通知）
-            return {
-                "success": True,
-                "data": {
-                    "status": "matched",
-                },
-                "message": "Match found! Check WebSocket for details",
-            }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """单用户工作台保留过往对战资料。"""
+    raise HTTPException(status_code=409, detail="本地工作台暂不支持多人匹配。")
 
 
 @router.post("/cancel-match")
@@ -258,6 +217,7 @@ async def get_battle_history(
     *,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
+    language: Optional[str] = Query(None, pattern="^(en|ja|fr)$"),
     current_user: User = Depends(get_workspace_user),
 ):
     """获取对战历史"""
@@ -266,6 +226,7 @@ async def get_battle_history(
     battles = await pk_service.get_battle_history(
         user_id=str(current_user.id),
         limit=limit,
+        language=language,
     )
 
     return {

@@ -132,7 +132,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       </Avatar>
 
       {/* Message content */}
-      <Box sx={{ maxWidth: '70%', minWidth: '200px' }}>
+      <Box sx={{ maxWidth: { xs: 'calc(100% - 40px)', sm: '80%' }, minWidth: 0, overflowWrap: 'anywhere' }}>
         <Paper
           elevation={1}
           sx={{
@@ -172,6 +172,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               {/* Menu button */}
               <IconButton
                 size="small"
+                aria-label="消息操作"
                 onClick={handleMenuOpen}
                 sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
               >
@@ -196,7 +197,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
 
           {/* Main content */}
-          {message.type === 'ai_response' ? (
+          {message.type === 'ai_response' || (message.type === 'system' && message.aiResponse) ? (
             <MarkdownRenderer 
               content={message.content} 
               variant="body1"
@@ -350,7 +351,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             <ListItemText>复制</ListItemText>
           </MenuItem>
           
-          {message.processingStatus === 'failed' && (
+          {onRetry && message.processingStatus === 'failed' && (
             <MenuItem onClick={handleRetry}>
               <ListItemIcon>
                 <RefreshIcon fontSize="small" />
@@ -359,12 +360,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </MenuItem>
           )}
           
-          <MenuItem onClick={handleDelete}>
+          {onDelete && <MenuItem onClick={handleDelete}>
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>删除</ListItemText>
-          </MenuItem>
+          </MenuItem>}
         </Menu>
       </Box>
     </Box>

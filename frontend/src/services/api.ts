@@ -32,6 +32,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error);
     const apiError = ErrorHandler.handleApiError(error);
     // The configuration page displays its own errors. Avoid logging requests containing keys.
     if (!error.config?.url?.startsWith('/ai-settings')) {

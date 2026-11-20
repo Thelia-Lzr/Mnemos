@@ -387,9 +387,6 @@ const PKBattleInterface: React.FC<PKBattleInterfaceProps> = ({
                     奖励结算:
                   </Typography>
                   <Typography variant="body2">
-                    Credits奖励: +{battleResult.rewards.winnerReward || 0}
-                  </Typography>
-                  <Typography variant="body2">
                     MMR变化: {battleResult.rewards.player1MMRChange > 0 ? '+' : ''}{battleResult.rewards.player1MMRChange}
                   </Typography>
                 </Box>

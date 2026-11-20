@@ -46,7 +46,6 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
   const [error, setError] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [creditCost, setCreditCost] = useState<number | null>(null);
 
   const handleSubmit = async () => {
     if (!followUpQuestion.trim()) return;
@@ -56,7 +55,6 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
     setError(null);
     setResponse(null);
     setStreamingContent('');
-    setCreditCost(null);
 
     try {
       await practiceApi.askQuestionFollowUpStream(
@@ -78,9 +76,6 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
         (chunk: string) => {
           setStreamingContent(prev => prev + chunk);
         },
-        (cost: number) => {
-          setCreditCost(cost);
-        },
         () => {
           setIsStreaming(false);
           setLoading(false);
@@ -100,7 +95,7 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSubmit();
     }
@@ -115,7 +110,6 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
       setFollowUpQuestion('');
       setStreamingContent('');
       setIsStreaming(false);
-      setCreditCost(null);
     }
   };
 
@@ -149,7 +143,7 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
               onChange={(e) => setFollowUpQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={loading}
-              helperText="按 Enter 发送，Shift+Enter 换行 • 消耗 1 积分"
+              helperText="按 Enter 发送，Shift+Enter 换行"
               size="small"
             />
           </Box>
@@ -179,14 +173,6 @@ const InlineFollowUp: React.FC<InlineFollowUpProps> = ({ questionData }) => {
                 <Typography variant="subtitle2" color="primary">
                   AI 回答
                 </Typography>
-                {(creditCost !== null || response?.creditCost) && (
-                  <Chip 
-                    label={`消耗 ${creditCost || response?.creditCost} 积分`} 
-                    size="small" 
-                    color="primary" 
-                    variant="outlined" 
-                  />
-                )}
                 {isStreaming && (
                   <CircularProgress size={16} />
                 )}

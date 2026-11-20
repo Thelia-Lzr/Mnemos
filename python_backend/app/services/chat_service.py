@@ -4,7 +4,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import uuid
 
@@ -26,7 +26,7 @@ class ChatService:
         content: str,
         language: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-    ) -> ChatMessage:
+    ) -> tuple[ChatMessage, ChatMessage]:
         """
         发送聊天消息并获取 AI 响应
 
@@ -39,35 +39,38 @@ class ChatService:
         Returns:
             创建的聊天消息
         """
-        # 创建用户消息
-        user_message = ChatMessage(
-            user_id=uuid.UUID(user_id),
-            content=content,
-            type=MessageType.USER_TEXT,
-            processing_status=ProcessingStatus.PROCESSING,
+        language_name = {"en": "英语", "ja": "日语", "fr": "法语"}.get(language or "", "英语")
+        system_prompt = (
+            f"你是语言学习助手。请用{language_name}回答，必要时用中文解释。"
+            "纠正语法错误，解释语言知识点并提供学习建议。"
         )
-        self.db.add(user_message)
-        await self.db.flush()
-
-        # 构建 AI 请求
-        system_prompt = f"""你是一个专业的{language or '英语'}语言学习助手。
-你的职责：
-1. 与用户进行友好对话
-2. 纠正用户的语法错误
-3. 解释语言知识点
-4. 提供学习建议
-
-请用{language or '英语'}回答，但可以适当使用中文解释复杂概念。"""
+        previous = await self.get_chat_history(user_id, limit=12)
+        history = [
+            {"role": "user" if item.type == MessageType.USER_TEXT else "assistant", "content": item.content}
+            for item in reversed(previous)
+            if item.type in (MessageType.USER_TEXT, MessageType.AI_RESPONSE)
+        ]
 
         # 调用 AI
         ai_response = await call_ai(
             self.db, AIFeature.CONVERSATION,
             prompt=content,
             context={
+                **(context or {}),
                 "system_prompt": system_prompt,
-                **(context or {})
+                "history": history,
             },
         )
+
+        user_message = ChatMessage(
+            user_id=uuid.UUID(user_id),
+            content=content,
+            type=MessageType.USER_TEXT,
+            processing_status=ProcessingStatus.COMPLETED,
+            created_at=datetime.now(timezone.utc),
+        )
+        self.db.add(user_message)
+        await self.db.flush()
 
         # 创建 AI 响应消息
         ai_message = ChatMessage(
@@ -75,16 +78,17 @@ class ChatService:
             content=ai_response["content"],
             type=MessageType.AI_RESPONSE,
             processing_status=ProcessingStatus.COMPLETED,
+            created_at=datetime.now(timezone.utc),
             ai_response=ai_response,
         )
         self.db.add(ai_message)
 
         # 更新用户消息状态
-        user_message.processing_status = ProcessingStatus.COMPLETED
         await self.db.commit()
+        await self.db.refresh(user_message)
         await self.db.refresh(ai_message)
 
-        return ai_message
+        return user_message, ai_message
 
     async def get_chat_history(
         self,
@@ -106,7 +110,7 @@ class ChatService:
         result = await self.db.execute(
             select(ChatMessage)
             .where(ChatMessage.user_id == uuid.UUID(user_id))
-            .order_by(ChatMessage.created_at.desc())
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
             .offset(offset)
             .limit(limit)
         )
@@ -153,7 +157,7 @@ class ChatService:
                 ChatMessage.user_id == uuid.UUID(user_id),
                 ChatMessage.content.ilike(f"%{query}%")
             )
-            .order_by(ChatMessage.created_at.desc())
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
             .limit(limit)
         )
         return list(result.scalars().all())
@@ -163,7 +167,7 @@ class ChatService:
         user_id: str,
         content: str,
         language: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> ChatMessage:
         """
         上传学习材料并分析
 
@@ -200,18 +204,31 @@ class ChatService:
             prompt=prompt,
         )
 
-        # 创建系统消息记录
+        analysis = json.loads(response["content"])
+        sections = ["### 学习材料分析"]
+        if analysis.get("summary"):
+            sections.append(analysis["summary"])
+        for title, key in (("重点词汇", "vocabulary"), ("语法要点", "grammar_points"), ("学习建议", "learning_suggestions")):
+            entries = analysis.get(key) or []
+            lines = [
+                f'- {entry.get("word", "")} · {entry.get("definition", "")}'
+                if isinstance(entry, dict) else f"- {entry}"
+                for entry in entries
+            ]
+            if lines:
+                sections.append(f"**{title}**\n" + "\n".join(lines))
+
         system_message = ChatMessage(
             user_id=uuid.UUID(user_id),
-            content=f"分析学习材料：{content[:100]}...",
+            content="\n\n".join(sections),
             type=MessageType.SYSTEM,
             processing_status=ProcessingStatus.COMPLETED,
             ai_response=response,
         )
         self.db.add(system_message)
         await self.db.commit()
-
-        return response
+        await self.db.refresh(system_message)
+        return system_message
 
     async def parse_intent(
         self,
@@ -244,11 +261,9 @@ class ChatService:
 - language_learning: 学习对话
 - generate_practice: 生成练习
 - check_progress: 查看进度
-- check_credits: 查看积分
 - view_statistics: 查看统计
 - view_practice_history: 查看练习历史
 - account_management: 账户管理（隐私敏感）
-- payment_operations: 支付操作（隐私敏感）
 
 用户消息：{message}
 """

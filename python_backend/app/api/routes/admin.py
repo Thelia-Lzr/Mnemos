@@ -3,40 +3,19 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from typing import Optional, List
+from sqlalchemy import select, delete, func, or_
+from typing import Literal, Optional
+from datetime import datetime, timedelta, timezone
+from pydantic import BaseModel, Field
 import uuid
-from datetime import datetime, timezone
 
 from app.api.deps import get_db, get_workspace_user
-from app.models.user import User
+from app.models.user import User, UserCapability
 from app.models.task import AsyncTask
 from app.models.practice import PracticeResult
-from app.models.payment import UserCredit, CreditTransaction, PaymentOrder, RechargePackage
-from app.schemas.payment import CreditAdjustRequest
 
 router = APIRouter(prefix="/api/admin", tags=["管理员"])
 
-
-
-def _to_package_dict(p: RechargePackage) -> dict:
-    return {
-        "id": str(p.id),
-        "name": p.name,
-        "description": p.description,
-        "priceInCents": p.price_in_cents,
-        "currency": p.currency,
-        "creditAmount": p.credit_amount,
-        "bonusCredits": p.bonus_credits,
-        "isActive": p.is_active,
-        "isPopular": p.is_popular,
-        "displayOrder": p.display_order,
-        "originalPrice": p.original_price,
-        "discountPercentage": p.discount_percentage,
-        "createdAt": p.created_at.isoformat() if p.created_at else None,
-        "updatedAt": p.updated_at.isoformat() if p.updated_at else None,
-        "createdBy": str(p.created_by) if p.created_by else None,
-    }
 
 
 @router.get("/users")
@@ -46,28 +25,33 @@ async def get_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    search: str = Query("", max_length=255),
+    sortBy: Literal["created_at", "username", "email", "last_login_at"] = "created_at",
+    sortOrder: Literal["asc", "desc"] = "desc",
 ):
     """获取用户列表"""
     if page > 1 and offset == 0:
         offset = (page - 1) * limit
 
+    filters = []
+    if search.strip():
+        term = search.strip().lower()
+        filters.append(or_(
+            func.lower(User.username).contains(term, autoescape=True),
+            func.lower(User.email).contains(term, autoescape=True),
+        ))
+    column = getattr(User, sortBy)
+    order = column.asc() if sortOrder == "asc" else column.desc()
     result = await db.execute(
-        select(User)
-        .order_by(User.created_at.desc())
-        .offset(offset)
-        .limit(limit)
+        select(User).where(*filters).order_by(order.nulls_last(), User.id).offset(offset).limit(limit)
     )
     users = list(result.scalars().all())
 
-    total_result = await db.execute(select(func.count(User.id)))
+    total_result = await db.execute(select(func.count(User.id)).where(*filters))
     total = total_result.scalar() or 0
 
     user_rows = []
     for u in users:
-        credit_result = await db.execute(
-            select(UserCredit).where(UserCredit.user_id == u.id)
-        )
-        credits = credit_result.scalar_one_or_none()
         user_rows.append(
             {
                 "id": str(u.id),
@@ -76,9 +60,6 @@ async def get_users(
                 "role": u.role,
                 "createdAt": u.created_at.isoformat() if u.created_at else None,
                 "lastLoginAt": u.last_login_at.isoformat() if u.last_login_at else None,
-                "creditBalance": credits.current_balance if credits else 0,
-                "totalCreditsEarned": credits.total_earned if credits else 0,
-                "totalCreditsSpent": credits.total_spent if credits else 0,
             }
         )
 
@@ -115,11 +96,9 @@ async def get_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    credit_result = await db.execute(
-        select(UserCredit).where(UserCredit.user_id == user.id)
+    capability_rows = await db.scalars(
+        select(UserCapability).where(UserCapability.user_id == user.id)
     )
-    credits = credit_result.scalar_one_or_none()
-
     capabilities = [
         {
             "language": c.language,
@@ -132,16 +111,8 @@ async def get_user(
             "writingLevel": c.writing_level,
             "lastAssessedAt": c.last_assessed_at.isoformat() if c.last_assessed_at else None,
         }
-        for c in (user.capabilities or [])
+        for c in capability_rows
     ]
-
-    tx_result = await db.execute(
-        select(CreditTransaction)
-        .where(CreditTransaction.user_id == user.id)
-        .order_by(CreditTransaction.created_at.desc())
-        .limit(10)
-    )
-    recent_transactions = list(tx_result.scalars().all())
 
     stats_result = await db.execute(
         select(
@@ -163,20 +134,8 @@ async def get_user(
                 "role": user.role,
                 "createdAt": user.created_at.isoformat() if user.created_at else None,
                 "lastLoginAt": user.last_login_at.isoformat() if user.last_login_at else None,
-                "creditBalance": credits.current_balance if credits else 0,
-                "totalCreditsEarned": credits.total_earned if credits else 0,
-                "totalCreditsSpent": credits.total_spent if credits else 0,
             },
             "capabilities": capabilities,
-            "recentTransactions": [
-                {
-                    "type": t.transaction_type,
-                    "amount": t.amount,
-                    "description": t.description,
-                    "created_at": t.created_at.isoformat() if t.created_at else None,
-                }
-                for t in recent_transactions
-            ],
             "practiceStats": {
                 "total_practices": total_practices or 0,
                 "average_accuracy": float(average_accuracy or 0),
@@ -197,240 +156,15 @@ async def get_system_statistics(
     user_count_result = await db.execute(select(func.count(User.id)))
     user_count = user_count_result.scalar() or 0
 
-    # 订单统计
-    order_count_result = await db.execute(select(func.count(PaymentOrder.id)))
-    order_count = order_count_result.scalar() or 0
-
-    # 收入统计
-    revenue_result = await db.execute(
-        select(func.sum(PaymentOrder.amount)).where(
-            PaymentOrder.status == "paid"
-        )
-    )
-    revenue = revenue_result.scalar() or 0
-
+    practice_count = await db.scalar(select(func.count(PracticeResult.id)))
+    task_count = await db.scalar(select(func.count(AsyncTask.id)))
     return {
         "success": True,
         "data": {
             "totalUsers": user_count,
-            "totalOrders": order_count,
-            "totalRevenue": revenue,
-            "activeUsers": 0,  # TODO: 实现
+            "completedPractices": practice_count,
+            "totalTasks": task_count,
         },
-    }
-
-
-@router.get("/packages")
-async def get_admin_packages(
-    *,
-    db: AsyncSession = Depends(get_db),
-):
-    """获取所有套餐（包括非激活）"""
-    result = await db.execute(
-        select(RechargePackage).order_by(RechargePackage.display_order)
-    )
-    packages = list(result.scalars().all())
-
-    return {
-        "success": True,
-        "data": {
-            "packages": [_to_package_dict(p) for p in packages],
-            "salesStats": [],
-        },
-    }
-
-
-@router.post("/packages")
-async def create_package(
-    *,
-    request: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_workspace_user),
-):
-    """创建套餐"""
-    package = RechargePackage(
-        name=request.get("name", ""),
-        description=request.get("description"),
-        price_in_cents=request.get("priceInCents", 0),
-        currency=request.get("currency", "USD"),
-        credit_amount=request.get("creditAmount", 0),
-        bonus_credits=request.get("bonusCredits", 0),
-        is_active=request.get("isActive", True),
-        is_popular=request.get("isPopular", False),
-        display_order=request.get("displayOrder", 0),
-        original_price=request.get("originalPrice"),
-        discount_percentage=request.get("discountPercentage"),
-        created_by=current_user.id,
-    )
-    db.add(package)
-    await db.commit()
-    await db.refresh(package)
-
-    return {
-        "success": True,
-        "data": _to_package_dict(package),
-        "message": "Package created",
-    }
-
-
-@router.put("/packages/{package_id}")
-async def update_package(
-    *,
-    package_id: str,
-    request: dict,
-    db: AsyncSession = Depends(get_db),
-):
-    """更新套餐"""
-    result = await db.execute(
-        select(RechargePackage).where(RechargePackage.id == uuid.UUID(package_id))
-    )
-    package = result.scalar_one_or_none()
-    if not package:
-        raise HTTPException(status_code=404, detail="Package not found")
-
-    field_map = {
-        "name": "name",
-        "description": "description",
-        "priceInCents": "price_in_cents",
-        "currency": "currency",
-        "creditAmount": "credit_amount",
-        "bonusCredits": "bonus_credits",
-        "isActive": "is_active",
-        "isPopular": "is_popular",
-        "displayOrder": "display_order",
-        "originalPrice": "original_price",
-        "discountPercentage": "discount_percentage",
-    }
-    for req_key, model_key in field_map.items():
-        if req_key in request:
-            setattr(package, model_key, request[req_key])
-
-    await db.commit()
-    await db.refresh(package)
-    return {
-        "success": True,
-        "data": _to_package_dict(package),
-        "message": "Package updated",
-    }
-
-
-@router.delete("/packages/{package_id}")
-async def delete_package(
-    *,
-    package_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """删除套餐（软删除）"""
-    result = await db.execute(
-        select(RechargePackage).where(RechargePackage.id == uuid.UUID(package_id))
-    )
-    package = result.scalar_one_or_none()
-    if not package:
-        raise HTTPException(status_code=404, detail="Package not found")
-
-    package.is_active = False
-    await db.commit()
-    return {"success": True, "message": "Package disabled"}
-
-
-@router.get("/credit-stats")
-async def get_credit_statistics(
-    *,
-    db: AsyncSession = Depends(get_db),
-):
-    """获取积分统计"""
-    # 总积分
-    total_credits_result = await db.execute(
-        select(func.sum(UserCredit.current_balance))
-    )
-    total_credits = total_credits_result.scalar() or 0
-
-    # 总发放
-    total_earned_result = await db.execute(
-        select(func.sum(UserCredit.total_earned))
-    )
-    total_earned = total_earned_result.scalar() or 0
-
-    # 总消费
-    total_spent_result = await db.execute(
-        select(func.sum(UserCredit.total_spent))
-    )
-    total_spent = total_spent_result.scalar() or 0
-
-    return {
-        "success": True,
-        "data": {
-            "totalCreditsInCirculation": total_credits,
-            "totalCreditsEarned": total_earned,
-            "totalCreditsSpent": total_spent,
-            "totalCreditsRemaining": total_credits,
-            "totalCreditsIssued": total_earned,
-            "totalCreditsConsumed": total_spent,
-        },
-    }
-
-
-@router.post("/users/{user_id}/credits/adjust")
-async def adjust_user_credits(
-    *,
-    user_id: str,
-    request: CreditAdjustRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """调整用户积分"""
-    # 获取用户
-    user_result = await db.execute(
-        select(User).where(User.id == uuid.UUID(user_id))
-    )
-    target_user = user_result.scalar_one_or_none()
-
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # 获取或创建积分记录
-    credit_result = await db.execute(
-        select(UserCredit).where(UserCredit.user_id == uuid.UUID(user_id))
-    )
-    credits = credit_result.scalar_one_or_none()
-
-    if not credits:
-        credits = UserCredit(
-            user_id=uuid.UUID(user_id),
-            current_balance=0,
-            total_earned=0,
-            total_spent=0,
-        )
-        db.add(credits)
-
-    old_balance = credits.current_balance
-    credits.current_balance += request.amount
-
-    if request.amount > 0:
-        credits.total_earned += request.amount
-    else:
-        credits.total_spent += abs(request.amount)
-
-    # 创建交易记录
-    transaction = CreditTransaction(
-        user_id=uuid.UUID(user_id),
-        amount=request.amount,
-        balance_after=credits.current_balance,
-        transaction_type="admin_adjustment",
-        description=request.description,
-        reference_id=None,
-    )
-    db.add(transaction)
-    await db.commit()
-
-    return {
-        "success": True,
-        "data": {
-            "userId": user_id,
-            "oldBalance": old_balance,
-            "newBalance": credits.current_balance,
-            "adjustment": request.amount,
-        },
-        "message": f"Credits adjusted: {'+' if request.amount > 0 else ''}{request.amount}",
     }
 
 
@@ -440,8 +174,11 @@ async def get_queue_metrics(
     db: AsyncSession = Depends(get_db),
 ):
     """获取任务队列指标"""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     status_counts_result = await db.execute(
-        select(AsyncTask.status, func.count(AsyncTask.id)).group_by(AsyncTask.status)
+        select(AsyncTask.status, func.count(AsyncTask.id))
+        .where(AsyncTask.created_at >= cutoff)
+        .group_by(AsyncTask.status)
     )
     status_counts = {row[0]: row[1] for row in status_counts_result.all()}
     total_tasks = sum(status_counts.values())
@@ -507,7 +244,8 @@ async def get_admin_tasks(
                     "started_at": t.started_at.isoformat() if t.started_at else None,
                     "completed_at": t.completed_at.isoformat() if t.completed_at else None,
                     "progress": t.progress_percent or 0,
-                    "retry_count": 0,
+                    "execution_time": (t.completed_at - t.started_at).total_seconds() * 1000
+                    if t.completed_at and t.started_at else None,
                     "error_message": t.error_message,
                 }
                 for t in tasks
@@ -517,67 +255,40 @@ async def get_admin_tasks(
     }
 
 
-@router.post("/retry-failed-tasks")
-async def retry_failed_tasks(
-    *,
-    request: dict,
-    db: AsyncSession = Depends(get_db),
-):
-    """重试失败任务"""
-    task_ids = request.get("taskIds", [])
-    retried = 0
+@router.post("/retry-failed-tasks", include_in_schema=False)
+async def retry_failed_tasks():
+    raise HTTPException(status_code=501, detail="暂不支持从历史记录重新提交任务。")
 
-    for task_id in task_ids:
-        result = await db.execute(
-            select(AsyncTask).where(AsyncTask.id == uuid.UUID(task_id))
-        )
-        task = result.scalar_one_or_none()
-        if task and task.status == "failed":
-            task.status = "queued"
-            task.error_message = None
-            task.progress_percent = 0
-            retried += 1
 
-    await db.commit()
-    return {
-        "success": True,
-        "data": {"retriedTasks": retried, "taskIds": task_ids},
-        "message": f"Retried {retried} task(s)",
-    }
+class TaskCleanupRequest(BaseModel):
+    days: int = Field(7, ge=1, le=3650)
+    includeCompleted: bool = True
+    includeFailed: bool = False
 
 
 @router.post("/clear-queue")
 async def clear_queue(
-    *,
-    request: dict,
+    request: TaskCleanupRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """清理任务队列（清理完成/失败任务）"""
-    include_completed = request.get("includeCompleted", True)
-    include_failed = request.get("includeFailed", False)
-
+    """按保留期删除已结束的任务记录。"""
     statuses = []
-    if include_completed:
+    if request.includeCompleted:
         statuses.append("completed")
-    if include_failed:
+    if request.includeFailed:
         statuses.append("failed")
 
-    if not statuses:
-        return {"success": True, "data": {"deletedTasks": 0, "clearedDays": request.get("days", 0)}}
+    deleted_count = 0
+    if statuses:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=request.days)
+        result = await db.execute(delete(AsyncTask).where(
+            AsyncTask.status.in_(statuses),
+            func.coalesce(AsyncTask.completed_at, AsyncTask.updated_at, AsyncTask.created_at) < cutoff,
+        ))
+        deleted_count = result.rowcount
+        await db.commit()
 
-    result = await db.execute(
-        select(AsyncTask).where(AsyncTask.status.in_(statuses))
-    )
-    tasks = list(result.scalars().all())
-    deleted_count = len(tasks)
-    for task in tasks:
-        await db.delete(task)
-
-    await db.commit()
     return {
         "success": True,
-        "data": {
-            "deletedTasks": deleted_count,
-            "clearedDays": request.get("days", 0),
-        },
+        "data": {"deletedTasks": deleted_count, "clearedDays": request.days},
     }

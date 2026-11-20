@@ -71,7 +71,7 @@ const PracticeHistorySummary: React.FC = () => {
       const practiceStats: PracticeStats = {
         totalPractices: completedPractices.length,
         averageAccuracy: completedPractices.length > 0 ? totalAccuracy / completedPractices.length : 0,
-        totalStudyTime: Math.round(totalTime / 60), // Convert to minutes
+        totalStudyTime: Math.round(totalTime / 60000), // Convert to minutes
         completedToday,
         currentStreak: calculateStreak(completedPractices),
         recentPractices

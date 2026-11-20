@@ -4,7 +4,6 @@ import chatSlice from './slices/chatSlice';
 import practiceSlice from './slices/practiceSlice';
 import vocabularySlice from './slices/vocabularySlice';
 import pkSlice from './slices/pkSlice';
-import paymentSlice from './slices/paymentSlice';
 import dailyRecommendationSlice from './slices/dailyRecommendationSlice';
 
 export const store = configureStore({
@@ -14,7 +13,6 @@ export const store = configureStore({
     practice: practiceSlice,
     vocabulary: vocabularySlice,
     pk: pkSlice,
-    payment: paymentSlice,
     dailyRecommendation: dailyRecommendationSlice,
   },
   middleware: (getDefaultMiddleware) =>

@@ -1,7 +1,6 @@
 import {
     Dashboard as DashboardIcon,
     Monitor as MonitoringIcon,
-    ShoppingCart as PackageIcon,
     People as PeopleIcon,
     Storage as QueueIcon
 } from '@mui/icons-material';
@@ -13,7 +12,6 @@ import {
     Typography
 } from '@mui/material';
 import React, { useState } from 'react';
-import PackageManager from '../components/Admin/PackageManager';
 import SystemMonitoring from '../components/Admin/SystemMonitoring';
 import SystemStats from '../components/Admin/SystemStats';
 import TaskQueueManager from '../components/Admin/TaskQueueManager';
@@ -37,7 +35,7 @@ function TabPanel(props: TabPanelProps) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
           {children}
         </Box>
       )}
@@ -60,7 +58,7 @@ const AdminPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <Typography variant="h4" component="h1" gutterBottom>
         工作台管理
       </Typography>
@@ -70,8 +68,8 @@ const AdminPage: React.FC = () => {
           <Tabs 
             value={tabValue} 
             onChange={handleTabChange} 
-            aria-label="admin tabs"
-            variant="standard"
+            aria-label="工作台管理"
+            variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile
           >
             <Tab 
               icon={<DashboardIcon />} 
@@ -84,19 +82,14 @@ const AdminPage: React.FC = () => {
               {...a11yProps(1)} 
             />
             <Tab 
-              icon={<PackageIcon />} 
-              label="套餐管理" 
-              {...a11yProps(2)} 
-            />
-            <Tab 
               icon={<QueueIcon />} 
               label="任务队列" 
-              {...a11yProps(3)} 
+              {...a11yProps(2)}
             />
             <Tab 
               icon={<MonitoringIcon />} 
               label="系统监控" 
-              {...a11yProps(4)} 
+              {...a11yProps(3)}
             />
           </Tabs>
         </Box>
@@ -110,14 +103,10 @@ const AdminPage: React.FC = () => {
         </TabPanel>
         
         <TabPanel value={tabValue} index={2}>
-          <PackageManager />
-        </TabPanel>
-        
-        <TabPanel value={tabValue} index={3}>
           <TaskQueueManager />
         </TabPanel>
         
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={3}>
           <SystemMonitoring />
         </TabPanel>
       </Paper>

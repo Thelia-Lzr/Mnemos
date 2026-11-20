@@ -31,6 +31,7 @@ export interface SendMessageRequest {
 
 export interface SendMessageResponse {
   success: boolean;
+  userMessage?: Message;
   message?: Message;
   taskId?: string;
   error?: string;
@@ -157,9 +158,8 @@ class ChatApiService {
       });
 
       const response = await api.post('/chat/upload-material', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        params: { language: request.language },
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       return response.data;
     } catch (error: any) {
@@ -207,6 +207,10 @@ class ChatApiService {
         error: error.response?.data?.error || error.message || 'Failed to upload material'
       };
     }
+  }
+
+  async deleteMessage(messageId: string): Promise<void> {
+    await api.delete(`/chat/message/${messageId}`);
   }
 
   // Chat history and management

@@ -47,7 +47,6 @@ class UserIntent(str, Enum):
 
     # 统计查看
     VIEW_STATISTICS = "view_statistics"
-    CHECK_CREDITS = "check_credits"
     VIEW_MILESTONES = "view_milestones"
 
     # 设置管理
@@ -60,7 +59,6 @@ class UserIntent(str, Enum):
 
     # 隐私敏感
     ACCOUNT_MANAGEMENT = "account_management"
-    PAYMENT_OPERATIONS = "payment_operations"
 
 
 class FileAttachment(BaseModel):
@@ -117,6 +115,7 @@ class SendMessageRequest(BaseModel):
 class SendMessageResponse(BaseModel):
     """发送消息响应"""
     success: bool
+    userMessage: Optional[ChatMessageResponse] = None
     message: Optional[ChatMessageResponse] = None
     taskId: Optional[str] = None
     error: Optional[str] = None

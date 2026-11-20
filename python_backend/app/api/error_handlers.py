@@ -48,7 +48,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         exc: SQLAlchemyError,
     ) -> JSONResponse:
         """处理数据库错误"""
-        logger.error(f"Database error: {exc}", exc_info=True)
+        logger.error("Database error for %s: %s", request.url.path, type(exc).__name__)
 
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -64,7 +64,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         exc: ValidationError,
     ) -> JSONResponse:
         """处理 Pydantic 验证错误"""
-        logger.warning(f"Pydantic validation error: {exc.errors()}")
+        logger.warning("Response validation error for %s", request.url.path)
 
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -80,7 +80,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         exc: Exception,
     ) -> JSONResponse:
         """处理通用异常"""
-        logger.error(f"Unhandled error: {exc}", exc_info=True)
+        logger.error("Unhandled error for %s: %s", request.url.path, type(exc).__name__)
 
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -18,6 +18,8 @@ flowchart LR
 
 在正常开发入口下，FastAPI 监听 `127.0.0.1`。浏览器导航直接进入工作台，业务路由通过 `get_workspace_user` 获取本地资料。Alembic 创建单行 `workspace_settings`，保存固定资料 ID。唯一旧资料直接关联，其他情况创建新资料，旧记录及外键保留。配置 `WORKSPACE_USER_ID` 可按 UUID 使用另一份已有资料。
 
+开源工作台已移除支付和积分计费的页面、业务服务及 API。旧版相关数据表继续由原迁移维护。能力评估及 PK 页面提供已有记录浏览。
+
 ## 组件和接口
 
 ### 前端组件架构
@@ -33,7 +35,6 @@ interface PageComponents {
   VocabularyPage: React.FC    // 生词表管理
   PKArenaPage: React.FC       // PK对战界面
   ProfilePage: React.FC       // 用户资料和设置
-  RechargePage: React.FC      // 充值页面
   AdminPage: React.FC         // 管理员控制台
 }
 ```
@@ -267,7 +268,7 @@ interface AdminAPI {
 
 - 配置记录使用 UUID，包含名称、提供方、模型和超时。Responses API 额外使用完整的 `/responses` 地址、可选 Bearer 密钥和最大输出 Token。保存请求省略密钥时，同端点沿用已有密钥，传入 `null` 时清除密钥，更换端点时须重新录入。密钥字段由后端保存于 PostgreSQL，读接口只返回 `has_api_key`。
 - 路由保存为功能键到有序配置 ID 数组的映射。每个队列最多五项，配置 ID 唯一且必须存在。保存时检查版本，冲突返回 HTTP 409。删除配置与移除所有队列引用在同一次更新中提交。
-- 功能键覆盖 AI 对话、材料分析、练习生成、结果分析、练习追问、词汇提取、词汇练习、每日推荐、聊天功能识别和意图识别。能力评估的现有量表计算由业务代码执行。
+- 功能键覆盖 AI 对话、材料分析、练习生成、结果分析、练习追问、词汇提取、词汇练习、每日推荐、聊天功能识别和意图识别。能力页面展示已存储的资料和评估结果。
 - HTTP 与 Celery 请求读取同一份 PostgreSQL 配置。使用功能队列，空队列继承默认队列。网络错误、HTTP 错误、CLI 失败、超时、空响应或结构化结果无效时继续下一项。队列耗尽时提供可读错误，每日推荐可使用规则结果。
 - Responses 适配器发送普通文本消息，处理 `output_text` 和分段输出，读取服务方提供的 Token 数据。CLI 适配器使用临时目录和无交互启动参数，禁用模型操作工具，从标准输入传入提示词。
 

@@ -28,6 +28,17 @@ from app.models.vocabulary import VocabularyWord
 router = APIRouter(prefix="/api/vocabulary", tags=["词汇"])
 
 
+def serialize_word(word: VocabularyWord) -> VocabularyWordResponse:
+    return VocabularyWordResponse(
+        id=str(word.id), userId=str(word.user_id), word=word.word, language=word.language,
+        definition=word.definition, pronunciation=word.pronunciation, part_of_speech=word.part_of_speech,
+        difficulty=word.difficulty, frequency=word.frequency,
+        mastery_level=word.mastery_level, mastery_score=word.mastery_score,
+        lastReviewedAt=word.last_reviewed_at, nextReviewAt=word.next_review_at,
+        reviewCount=word.review_count, addedAt=word.added_at, lastReviewScore=word.last_review_score,
+    )
+
+
 @router.get("/words", response_model=VocabularyWordListResponse)
 async def get_vocabulary_words(
     *,
@@ -66,22 +77,7 @@ async def get_vocabulary_words(
     return VocabularyWordListResponse(
         success=True,
         data=[
-            VocabularyWordResponse(
-                id=str(w.id),
-                userId=str(w.user_id),
-                word=w.word,
-                language=w.language,
-                definition=w.definition,
-                pronunciation=w.pronunciation,
-                part_of_speech=w.part_of_speech,
-                difficulty=w.difficulty,
-                frequency=w.frequency,
-                mastery_level=w.mastery_level,
-                mastery_score=w.mastery_score,
-                lastReviewedAt=w.last_reviewed_at,
-                nextReviewAt=w.next_review_at,
-                reviewCount=w.review_count,
-            )
+            serialize_word(w)
             for w in words
         ],
         pagination={"total": total, "limit": limit, "offset": offset},
@@ -108,22 +104,7 @@ async def add_word(
             part_of_speech=request.part_of_speech,
         )
 
-        return VocabularyWordResponse(
-            id=str(word.id),
-            userId=str(word.user_id),
-            word=word.word,
-            language=word.language,
-            definition=word.definition,
-            pronunciation=word.pronunciation,
-            part_of_speech=word.part_of_speech,
-            difficulty=word.difficulty,
-            frequency=word.frequency,
-            mastery_level=word.mastery_level,
-            mastery_score=word.mastery_score,
-            lastReviewedAt=word.last_reviewed_at,
-            nextReviewAt=word.next_review_at,
-            reviewCount=word.review_count,
-        )
+        return serialize_word(word)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -155,22 +136,7 @@ async def add_words_from_text(
         return {
             "success": True,
             "data": [
-                VocabularyWordResponse(
-                    id=str(w.id),
-                    userId=str(w.user_id),
-                    word=w.word,
-                    language=w.language,
-                    definition=w.definition,
-                    pronunciation=w.pronunciation,
-                    part_of_speech=w.part_of_speech,
-                    difficulty=w.difficulty,
-                    frequency=w.frequency,
-                    mastery_level=w.mastery_level,
-                    mastery_score=w.mastery_score,
-                    lastReviewedAt=w.last_reviewed_at,
-                    nextReviewAt=w.next_review_at,
-                    reviewCount=w.review_count,
-                )
+                serialize_word(w)
                 for w in words
             ],
             "message": f"Added {len(words)} new words to vocabulary",
@@ -225,22 +191,7 @@ async def update_mastery(
             mastery_score=mastery_score,
         )
 
-        return VocabularyWordResponse(
-            id=str(word.id),
-            userId=str(word.user_id),
-            word=word.word,
-            language=word.language,
-            definition=word.definition,
-            pronunciation=word.pronunciation,
-            part_of_speech=word.part_of_speech,
-            difficulty=word.difficulty,
-            frequency=word.frequency,
-            mastery_level=word.mastery_level,
-            mastery_score=word.mastery_score,
-            lastReviewedAt=word.last_reviewed_at,
-            nextReviewAt=word.next_review_at,
-            reviewCount=word.review_count,
-        )
+        return serialize_word(word)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -269,7 +220,7 @@ async def get_mastery_stats(
         longTermWords=stats["by_level"].get("long_term", 0),
         masteredWords=stats["by_level"].get("mastered", 0),
         averageMasteryScore=stats["average_score"],
-        wordsNeedingReview=0,  # TODO: 计算需要复习的单词数
+        wordsNeedingReview=stats["due"],
     )
 
 
@@ -294,22 +245,7 @@ async def get_words_needing_review(
         "success": True,
         "data": {
             "words": [
-                VocabularyWordResponse(
-                    id=str(w.id),
-                    userId=str(w.user_id),
-                    word=w.word,
-                    language=w.language,
-                    definition=w.definition,
-                    pronunciation=w.pronunciation,
-                    part_of_speech=w.part_of_speech,
-                    difficulty=w.difficulty,
-                    frequency=w.frequency,
-                    mastery_level=w.mastery_level,
-                    mastery_score=w.mastery_score,
-                    lastReviewedAt=w.last_reviewed_at,
-                    nextReviewAt=w.next_review_at,
-                    reviewCount=w.review_count,
-                )
+                serialize_word(w)
                 for w in words
             ]
         },
@@ -346,10 +282,19 @@ async def get_scheduled_reviews(
     current_user: User = Depends(get_workspace_user),
 ):
     """获取 scheduled reviews"""
-    # TODO: 实现 scheduled reviews 功能
+    words = await db.scalars(
+        select(VocabularyWord)
+        .where(VocabularyWord.user_id == current_user.id, VocabularyWord.language == language,
+               VocabularyWord.next_review_at.is_not(None))
+        .order_by(VocabularyWord.next_review_at, VocabularyWord.id)
+        .limit(limit)
+    )
     return {
         "success": True,
-        "data": {"schedules": []},
+        "data": {"schedules": [
+            {"wordId": str(word.id), "word": word.word, "nextReviewAt": word.next_review_at}
+            for word in words
+        ]},
     }
 
 
@@ -410,15 +355,18 @@ async def generate_vocabulary_practice(
     vocabulary_service = get_vocabulary_service(db)
 
     practice_data = await vocabulary_service.generate_practice(
-        user_id=request.userId if hasattr(request, 'userId') else str(current_user.id),
+        user_id=str(current_user.id),
         language=request.language,
         word_ids=request.wordIds,
         max_words=request.maxWords,
+        focus_on_weak_words=request.focusOnWeakWords,
+        include_review_words=request.includeReviewWords,
+        mastery_levels=request.masteryLevels,
     )
 
     return {
         "success": True,
-        "data": practice_data,
+        "data": {**practice_data, "words": [serialize_word(word) for word in practice_data["words"]]},
     }
 
 
@@ -432,16 +380,10 @@ async def submit_vocabulary_practice(
     """提交词汇练习结果"""
     vocabulary_service = get_vocabulary_service(db)
 
-    # 更新掌握度
-    for result in request.results:
-        try:
-            await vocabulary_service.update_mastery(
-                user_id=str(current_user.id),
-                word_id=result.wordId,
-                mastery_score=min(100, max(0, result.masteryDelta)),
-            )
-        except Exception:
-            pass  # 忽略单个单词更新失败
+    try:
+        await vocabulary_service.record_practice(str(current_user.id), request.results)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     return {
         "success": True,

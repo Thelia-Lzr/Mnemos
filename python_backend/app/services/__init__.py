@@ -6,7 +6,6 @@ from app.services.chat_service import ChatService, get_chat_service
 from app.services.practice_service import PracticeService, get_practice_service
 from app.services.vocabulary_service import VocabularyService, get_vocabulary_service
 from app.services.pk_battle_service import PKBattleService, get_pk_battle_service
-from app.services.payment_service import PaymentService, get_payment_service
 from app.services.daily_recommendation_service import (
     DailyRecommendationService,
     get_daily_recommendation_service,
@@ -28,9 +27,6 @@ __all__ = [
     # PK
     "PKBattleService",
     "get_pk_battle_service",
-    # Payment
-    "PaymentService",
-    "get_payment_service",
     # Daily Recommendation
     "DailyRecommendationService",
     "get_daily_recommendation_service",

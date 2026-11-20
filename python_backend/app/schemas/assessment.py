@@ -32,17 +32,17 @@ class UserCapabilityResponse(BaseModel):
     id: str
     language: str
     currentLevel: LanguageLevel
-    learningGoal: LanguageLevel
+    learningGoal: Optional[LanguageLevel] = None
     isActiveLearning: bool
-    overallLevel: str
-    confidenceScore: int
-    listeningLevel: int
-    speakingLevel: int
-    readingLevel: int
-    writingLevel: int
-    estimatedVocabularySize: int
-    masteredWordsCount: int
-    learningWordsCount: int
+    overallLevel: Optional[str] = None
+    confidenceScore: Optional[int] = None
+    listeningLevel: Optional[int] = None
+    speakingLevel: Optional[int] = None
+    readingLevel: Optional[int] = None
+    writingLevel: Optional[int] = None
+    estimatedVocabularySize: Optional[int] = None
+    masteredWordsCount: Optional[int] = None
+    learningWordsCount: Optional[int] = None
     lastAssessedAt: Optional[datetime] = None
     nextAssessmentDue: Optional[datetime] = None
 

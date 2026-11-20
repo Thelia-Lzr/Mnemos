@@ -5,7 +5,6 @@ import {
   Container,
   Grid,
   Card,
-  CardContent,
   Button,
   TextField,
   Select,
@@ -31,14 +30,14 @@ import {
   Schedule as ScheduleIcon,
   AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../store/store';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import ErrorHandler from '../utils/errorHandler';
+import { Link } from 'react-router-dom';
 import {
   fetchVocabularyWords,
   addWordsFromText,
   removeVocabularyWord,
   fetchMasteryStats,
-  fetchLearningMetrics,
   generateVocabularyPractice,
   generateAdaptivePractice,
   setSelectedLanguage,
@@ -47,7 +46,7 @@ import {
 import VocabularyWordCard from '../components/Vocabulary/VocabularyWordCard';
 import MasteryStatsCard from '../components/Vocabulary/MasteryStatsCard';
 import VocabularyPractice from '../components/Vocabulary/VocabularyPractice';
-import { vocabularyApi, PracticeResult } from '../services/vocabularyApi';
+import { vocabularyApi, PracticeResult, ReviewSchedule } from '../services/vocabularyApi';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -72,28 +71,46 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const VocabularyPage: React.FC = () => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const {
     words,
     masteryStats,
-    learningMetrics,
     currentPracticeGroup,
     selectedLanguage,
     loading,
     error,
-  } = useSelector((state: RootState) => state.vocabulary);
+  } = useAppSelector((state) => state.vocabulary);
 
   const [tabValue, setTabValue] = useState(0);
   const [addWordsDialog, setAddWordsDialog] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [wordToRemove, setWordToRemove] = useState<{ id: string; word: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [savingPractice, setSavingPractice] = useState(false);
+  const [practiceError, setPracticeError] = useState('');
+  const [reviewSchedule, setReviewSchedule] = useState<ReviewSchedule[] | null>(null);
+  const [reviewError, setReviewError] = useState(false);
   const [newWordsText, setNewWordsText] = useState('');
   const [masteryFilter, setMasteryFilter] = useState('all');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   useEffect(() => {
-    dispatch(fetchVocabularyWords({ language: selectedLanguage, masteryLevel: masteryFilter === 'all' ? undefined : masteryFilter }) as any);
-    dispatch(fetchMasteryStats(selectedLanguage) as any);
-    dispatch(fetchLearningMetrics({ language: selectedLanguage }) as any);
+    dispatch(fetchVocabularyWords({ language: selectedLanguage, masteryLevel: masteryFilter === 'all' ? undefined : masteryFilter }));
+    dispatch(fetchMasteryStats(selectedLanguage));
+
   }, [dispatch, selectedLanguage, masteryFilter]);
+
+  useEffect(() => {
+    if (tabValue !== 2) return;
+    let active = true;
+    setReviewSchedule(null);
+    setReviewError(false);
+    void vocabularyApi.getScheduledReviews(selectedLanguage)
+      .then(({ schedules }) => { if (active) setReviewSchedule(schedules); })
+      .catch(() => { if (active) setReviewError(true); });
+    return () => { active = false; };
+  }, [selectedLanguage, tabValue]);
 
   const handleLanguageChange = (language: 'en' | 'ja' | 'fr') => {
     dispatch(setSelectedLanguage(language));
@@ -104,31 +121,41 @@ const VocabularyPage: React.FC = () => {
   };
 
   const handleAddWords = async () => {
-    if (!newWordsText.trim()) return;
+    if (!newWordsText.trim() || adding) return;
+    setAdding(true);
+    setAddError('');
 
     try {
-      await dispatch(addWordsFromText({ text: newWordsText, language: selectedLanguage }) as any);
+      const result = await dispatch(addWordsFromText({ text: newWordsText.trim(), language: selectedLanguage })).unwrap();
       setAddWordsDialog(false);
       setNewWordsText('');
-      setSnackbar({ open: true, message: '词汇添加成功！', severity: 'success' });
+      setSnackbar({ open: true, message: result.extractedCount ? `已添加 ${result.extractedCount} 个词汇。` : '没有提取到新的词汇。', severity: 'success' });
       
       // Refresh data
-      dispatch(fetchVocabularyWords({ language: selectedLanguage }) as any);
-      dispatch(fetchMasteryStats(selectedLanguage) as any);
+      dispatch(fetchVocabularyWords({ language: selectedLanguage }));
+      dispatch(fetchMasteryStats(selectedLanguage));
     } catch (error) {
-      setSnackbar({ open: true, message: '添加词汇失败', severity: 'error' });
+      setAddError(ErrorHandler.getErrorMessage(error));
+    } finally {
+      setAdding(false);
     }
   };
 
-  const handleRemoveWord = async (wordId: string) => {
+  const handleRemoveWord = async () => {
+    if (!wordToRemove || removing) return;
+    setRemoving(true);
     try {
-      await dispatch(removeVocabularyWord(wordId) as any);
+      await dispatch(removeVocabularyWord(wordToRemove.id)).unwrap();
+      setWordToRemove(null);
       setSnackbar({ open: true, message: '词汇删除成功', severity: 'success' });
       
       // Refresh stats
-      dispatch(fetchMasteryStats(selectedLanguage) as any);
+      dispatch(fetchMasteryStats(selectedLanguage));
     } catch (error) {
-      setSnackbar({ open: true, message: '删除词汇失败', severity: 'error' });
+      setWordToRemove(null);
+      setSnackbar({ open: true, message: '删除词汇失败，请重试。', severity: 'error' });
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -137,7 +164,7 @@ const VocabularyPage: React.FC = () => {
       language: selectedLanguage,
       wordIds: [wordId],
       maxWords: 5,
-    }) as any);
+    }));
   };
 
   const handleGeneratePractice = () => {
@@ -146,25 +173,30 @@ const VocabularyPage: React.FC = () => {
       maxWords: 10,
       focusOnWeakWords: true,
       includeReviewWords: true,
-    }) as any);
+    }));
   };
 
   const handleGenerateAdaptivePractice = () => {
-    dispatch(generateAdaptivePractice(selectedLanguage) as any);
+    dispatch(generateAdaptivePractice(selectedLanguage));
   };
 
   const handlePracticeComplete = async (results: PracticeResult[]) => {
+    if (savingPractice) return;
+    setSavingPractice(true);
+    setPracticeError('');
     try {
       await vocabularyApi.submitPracticeResults(results);
       dispatch(clearCurrentPracticeGroup());
       setSnackbar({ open: true, message: '练习结果已保存！', severity: 'success' });
       
       // Refresh data
-      dispatch(fetchVocabularyWords({ language: selectedLanguage }) as any);
-      dispatch(fetchMasteryStats(selectedLanguage) as any);
-      dispatch(fetchLearningMetrics({ language: selectedLanguage }) as any);
+      dispatch(fetchVocabularyWords({ language: selectedLanguage }));
+      dispatch(fetchMasteryStats(selectedLanguage));
+
     } catch (error) {
-      setSnackbar({ open: true, message: '保存练习结果失败', severity: 'error' });
+      setPracticeError(ErrorHandler.getErrorMessage(error));
+    } finally {
+      setSavingPractice(false);
     }
   };
 
@@ -184,7 +216,7 @@ const VocabularyPage: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={3}>
         <Typography variant="h4" component="h1">
           生词表管理
         </Typography>
@@ -213,25 +245,24 @@ const VocabularyPage: React.FC = () => {
       )}
 
       {/* Mastery Stats */}
-      {masteryStats && (
-        <MasteryStatsCard stats={masteryStats} language={selectedLanguage} />
-      )}
+
 
       {/* Tabs */}
       <Card sx={{ mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label="词汇列表" icon={<TrendingUpIcon />} />
-          <Tab label="学习分析" icon={<PsychologyIcon />} />
-          <Tab label="复习计划" icon={<ScheduleIcon />} />
+        <Tabs variant="scrollable" aria-label="生词表功能" value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tab id="vocabulary-tab-0" aria-controls="vocabulary-tabpanel-0" label="词汇列表" icon={<TrendingUpIcon />} />
+          <Tab id="vocabulary-tab-1" aria-controls="vocabulary-tabpanel-1" label="学习分析" icon={<PsychologyIcon />} />
+          <Tab id="vocabulary-tab-2" aria-controls="vocabulary-tabpanel-2" label="复习计划" icon={<ScheduleIcon />} />
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
           {/* Vocabulary List */}
-          <Box display="flex" justifyContent="between" alignItems="center" mb={3} px={3}>
+          <Box display="flex" justifyContent="between" alignItems="center" flexWrap="wrap" gap={1} mb={3} px={3}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>掌握程度</InputLabel>
+              <InputLabel id="mastery-filter">掌握程度</InputLabel>
               <Select
                 value={masteryFilter}
+                labelId="mastery-filter"
                 label="掌握程度"
                 onChange={(e) => setMasteryFilter(e.target.value)}
               >
@@ -244,12 +275,12 @@ const VocabularyPage: React.FC = () => {
               </Select>
             </FormControl>
 
-            <Box display="flex" gap={2}>
+            <Box display="flex" flexWrap="wrap" gap={1}>
               <Button
                 variant="outlined"
                 onClick={handleGeneratePractice}
                 startIcon={<PsychologyIcon />}
-                disabled={words.length === 0}
+                disabled={loading || words.length === 0}
               >
                 生成练习
               </Button>
@@ -257,7 +288,7 @@ const VocabularyPage: React.FC = () => {
                 variant="contained"
                 onClick={handleGenerateAdaptivePractice}
                 startIcon={<AutoAwesomeIcon />}
-                disabled={words.length === 0}
+                disabled={loading || words.length === 0}
               >
                 智能练习
               </Button>
@@ -282,7 +313,7 @@ const VocabularyPage: React.FC = () => {
                   <Grid item xs={12} md={6} lg={4} key={word.id}>
                     <VocabularyWordCard
                       word={word}
-                      onRemove={handleRemoveWord}
+                      onRemove={() => setWordToRemove({ id: word.id, word: word.word })}
                       onPractice={handlePracticeWord}
                     />
                   </Grid>
@@ -293,80 +324,25 @@ const VocabularyPage: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {/* Learning Analytics */}
-          <Box px={3}>
-            {learningMetrics ? (
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        学习效率
-                      </Typography>
-                      <Box display="flex" justifyContent="space-between" mb={2}>
-                        <Typography variant="body2">已学词汇:</Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {learningMetrics.wordsLearned}
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between" mb={2}>
-                        <Typography variant="body2">平均学习时间:</Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {learningMetrics.averageLearningTime.toFixed(1)} 天
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between" mb={2}>
-                        <Typography variant="body2">记忆保持率:</Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {learningMetrics.retentionRate.toFixed(1)}%
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">掌握进度:</Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {learningMetrics.masteryProgression.toFixed(1)}%
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        薄弱环节
-                      </Typography>
-                      {learningMetrics.weaknessAreas.length > 0 ? (
-                        <Box display="flex" flexWrap="wrap" gap={1}>
-                          {learningMetrics.weaknessAreas.map((area, index) => (
-                            <Chip key={index} label={area} color="warning" size="small" />
-                          ))}
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          暂无明显薄弱环节
-                        </Typography>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-            ) : (
-              <Typography>暂无学习分析数据</Typography>
-            )}
+          <Box px={{ xs: 1, sm: 3 }}>
+            {masteryStats ? <MasteryStatsCard stats={masteryStats} language={selectedLanguage} /> : <Typography>暂无学习分析数据</Typography>}
           </Box>
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          {/* Review Schedule */}
           <Box px={3}>
-            <Typography variant="h6" gutterBottom>
-              复习计划
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              复习计划功能正在开发中...
-            </Typography>
+            {reviewError ? <Alert severity="error">无法加载复习计划。切换语言或标签后重试。</Alert> : !reviewSchedule ? (
+              <Typography role="status">正在加载复习计划…</Typography>
+            ) : reviewSchedule.length ? (
+              <Box component="ul" sx={{ pl: 2 }}>
+                {reviewSchedule.map(({ wordId, word, nextReviewAt }) => (
+                  <Box component="li" key={wordId} sx={{ mb: 1 }}>
+                    {word} · {new Date(nextReviewAt).toLocaleDateString('zh-CN')}
+                    <Button size="small" disabled={loading} onClick={() => handlePracticeWord(wordId)}>复习 {word}</Button>
+                  </Box>
+                ))}
+              </Box>
+            ) : <Typography>完成一次词汇练习后，这里会显示下次复习时间。</Typography>}
           </Box>
         </TabPanel>
       </Card>
@@ -376,18 +352,21 @@ const VocabularyPage: React.FC = () => {
         <Fab
           color="primary"
           sx={{ position: 'fixed', bottom: 16, right: 16 }}
-          onClick={() => setAddWordsDialog(true)}
+          aria-label="添加词汇"
+          onClick={() => { setAddError(''); setAddWordsDialog(true); }}
         >
           <AddIcon />
         </Fab>
       </Tooltip>
 
       {/* Add Words Dialog */}
-      <Dialog open={addWordsDialog} onClose={() => setAddWordsDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>添加词汇</DialogTitle>
+      <Dialog open={addWordsDialog} onClose={() => !adding && setAddWordsDialog(false)} maxWidth="md" fullWidth aria-labelledby="add-vocabulary-title">
+        <DialogTitle id="add-vocabulary-title">添加词汇</DialogTitle>
         <DialogContent>
+          {addError && <Alert severity="error" action={<Button component={Link} to="/ai-settings">AI 配置</Button>}>{addError}</Alert>}
           <TextField
             autoFocus
+            disabled={adding}
             margin="dense"
             label="输入文本内容"
             multiline
@@ -400,10 +379,19 @@ const VocabularyPage: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddWordsDialog(false)}>取消</Button>
-          <Button onClick={handleAddWords} variant="contained" disabled={!newWordsText.trim()}>
-            添加词汇
+          <Button onClick={() => setAddWordsDialog(false)} disabled={adding}>取消</Button>
+          <Button onClick={handleAddWords} variant="contained" disabled={adding || !newWordsText.trim()}>
+            {adding ? '正在提取…' : '添加词汇'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(wordToRemove)} onClose={() => !removing && setWordToRemove(null)} aria-labelledby="remove-word-title">
+        <DialogTitle id="remove-word-title">删除词汇？</DialogTitle>
+        <DialogContent>「{wordToRemove?.word}」的掌握进度和复习计划也会删除。</DialogContent>
+        <DialogActions>
+          <Button disabled={removing} onClick={() => setWordToRemove(null)}>取消</Button>
+          <Button disabled={removing} color="error" onClick={handleRemoveWord}>确认删除</Button>
         </DialogActions>
       </Dialog>
 
@@ -412,7 +400,9 @@ const VocabularyPage: React.FC = () => {
         <VocabularyPractice
           practiceGroup={currentPracticeGroup}
           onComplete={handlePracticeComplete}
-          onClose={() => dispatch(clearCurrentPracticeGroup())}
+          saving={savingPractice}
+          error={practiceError}
+          onClose={() => { setPracticeError(''); dispatch(clearCurrentPracticeGroup()); }}
         />
       )}
 

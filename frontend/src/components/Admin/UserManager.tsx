@@ -32,11 +32,8 @@ import {
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  Visibility as ViewIcon,
-  AccountBalance as CreditIcon,
-  Edit as EditIcon
+  Visibility as ViewIcon
 } from '@mui/icons-material';
-import SecurityUtils from '../../utils/security';
 import api from '../../services/api';
 
 interface User {
@@ -46,9 +43,6 @@ interface User {
   role: string;
   createdAt: string;
   lastLoginAt: string;
-  creditBalance: number;
-  totalCreditsEarned: number;
-  totalCreditsSpent: number;
 }
 
 interface UserDetails {
@@ -63,12 +57,6 @@ interface UserDetails {
     readingLevel: number;
     writingLevel: number;
     lastAssessedAt: string;
-  }>;
-  recentTransactions: Array<{
-    type: string;
-    amount: number;
-    description: string;
-    created_at: string;
   }>;
   practiceStats: {
     total_practices: number;
@@ -94,6 +82,8 @@ const UserManager: React.FC = () => {
     limit: 20
   });
   const [loading, setLoading] = useState(true);
+  const page = pagination.currentPage;
+  const limit = pagination.limit;
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -101,12 +91,6 @@ const UserManager: React.FC = () => {
   // User details dialog
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
-  
-  // Credit adjustment dialog
-  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
-  const [creditUserId, setCreditUserId] = useState('');
-  const [creditAmount, setCreditAmount] = useState(0);
-  const [creditDescription, setCreditDescription] = useState('');
   
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -119,30 +103,31 @@ const UserManager: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchUsers();
-  }, [pagination.currentPage, search, sortBy, sortOrder]);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => { void fetchUsers(controller.signal); }, search ? 200 : 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [page, limit, search, sortBy, sortOrder]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (signal: AbortSignal) => {
     try {
       const params = new URLSearchParams({
-        page: pagination.currentPage.toString(),
-        limit: pagination.limit.toString(),
+        page: page.toString(),
+        limit: limit.toString(),
         search,
         sortBy,
         sortOrder
       });
 
-      const response = await api.get(`/admin/users?${params}`);
+      const response = await api.get(`/admin/users?${params}`, { signal });
       
       if (response.data.success) {
         setUsers(response.data.data.users);
         setPagination(response.data.data.pagination);
       }
     } catch (error) {
-      console.error('Failed to fetch users:', error);
-      showSnackbar('Failed to fetch users', 'error');
+      if (!signal.aborted) showSnackbar('无法加载本地资料。', 'error');
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   };
 
@@ -160,41 +145,12 @@ const UserManager: React.FC = () => {
     }
   };
 
-  const handleCreditAdjustment = async () => {
-    try {
-      const response = await api.post(`/admin/users/${creditUserId}/credits/adjust`, {
-        amount: creditAmount,
-        description: creditDescription
-      });
-
-      if (response.data.success) {
-        showSnackbar('Credit adjustment successful', 'success');
-        setCreditDialogOpen(false);
-        setCreditAmount(0);
-        setCreditDescription('');
-        fetchUsers();
-      } else {
-        showSnackbar(response.data.message || 'Failed to adjust credits', 'error');
-      }
-    } catch (error) {
-      console.error('Failed to adjust credits:', error);
-      showSnackbar('Failed to adjust credits', 'error');
-    }
-  };
-
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount / 100);
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,7 +169,7 @@ const UserManager: React.FC = () => {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 3 }}>
-        User Management
+        本地资料
       </Typography>
 
       {/* Search and Filter Controls */}
@@ -223,7 +179,8 @@ const UserManager: React.FC = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                placeholder="Search users..."
+                label="搜索资料"
+                inputProps={{ maxLength: 255 }}
                 value={search}
                 onChange={handleSearchChange}
                 InputProps={{
@@ -247,7 +204,6 @@ const UserManager: React.FC = () => {
                   <MenuItem value="username">Username</MenuItem>
                   <MenuItem value="email">Email</MenuItem>
                   <MenuItem value="last_login_at">Last Login</MenuItem>
-                  <MenuItem value="credit_balance">Credit Balance</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -275,13 +231,13 @@ const UserManager: React.FC = () => {
             <TableRow>
               <TableCell>User</TableCell>
               <TableCell>Role</TableCell>
-              <TableCell>Credits</TableCell>
               <TableCell>Created</TableCell>
               <TableCell>Last Login</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
+            {!users.length && <TableRow><TableCell colSpan={5}>未找到符合条件的资料</TableCell></TableRow>}
             {users.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>
@@ -299,32 +255,13 @@ const UserManager: React.FC = () => {
                     size="small"
                   />
                 </TableCell>
-                <TableCell>
-                  <Box>
-                    <Typography variant="subtitle2">
-                      {user.creditBalance} credits
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Earned: {user.totalCreditsEarned} | Spent: {user.totalCreditsSpent}
-                    </Typography>
-                  </Box>
-                </TableCell>
                 <TableCell>{formatDate(user.createdAt)}</TableCell>
                 <TableCell>
                   {user.lastLoginAt ? formatDate(user.lastLoginAt) : 'Never'}
                 </TableCell>
                 <TableCell>
-                  <IconButton onClick={() => fetchUserDetails(user.id)} size="small">
+                  <IconButton onClick={() => fetchUserDetails(user.id)} size="small" aria-label={`查看 ${user.username} 的资料`}>
                     <ViewIcon />
-                  </IconButton>
-                  <IconButton 
-                    onClick={() => {
-                      setCreditUserId(user.id);
-                      setCreditDialogOpen(true);
-                    }} 
-                    size="small"
-                  >
-                    <CreditIcon />
                   </IconButton>
                 </TableCell>
               </TableRow>
@@ -343,9 +280,9 @@ const UserManager: React.FC = () => {
         />
       </Box>
 
-      {/* User Details Dialog */}
+      {/* 资料详情 Dialog */}
       <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>User Details</DialogTitle>
+        <DialogTitle>资料详情</DialogTitle>
         <DialogContent>
           {selectedUser && (
             <Box sx={{ mt: 1 }}>
@@ -364,10 +301,6 @@ const UserManager: React.FC = () => {
                   <Typography variant="body2" color="text.secondary">Role</Typography>
                   <Typography variant="body1">{selectedUser.user.role}</Typography>
                 </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Credit Balance</Typography>
-                  <Typography variant="body1">{selectedUser.user.creditBalance} credits</Typography>
-                </Grid>
               </Grid>
 
               <Divider sx={{ my: 2 }} />
@@ -383,19 +316,19 @@ const UserManager: React.FC = () => {
                     <Grid container spacing={2}>
                       <Grid item xs={3}>
                         <Typography variant="body2" color="text.secondary">Listening</Typography>
-                        <Typography variant="body1">{cap.listeningLevel}/100</Typography>
+                        <Typography variant="body1">{typeof cap.listeningLevel === 'number' && cap.lastAssessedAt ? `${cap.listeningLevel}/100` : '—'}</Typography>
                       </Grid>
                       <Grid item xs={3}>
                         <Typography variant="body2" color="text.secondary">Speaking</Typography>
-                        <Typography variant="body1">{cap.speakingLevel}/100</Typography>
+                        <Typography variant="body1">{typeof cap.speakingLevel === 'number' && cap.lastAssessedAt ? `${cap.speakingLevel}/100` : '—'}</Typography>
                       </Grid>
                       <Grid item xs={3}>
                         <Typography variant="body2" color="text.secondary">Reading</Typography>
-                        <Typography variant="body1">{cap.readingLevel}/100</Typography>
+                        <Typography variant="body1">{typeof cap.readingLevel === 'number' && cap.lastAssessedAt ? `${cap.readingLevel}/100` : '—'}</Typography>
                       </Grid>
                       <Grid item xs={3}>
                         <Typography variant="body2" color="text.secondary">Writing</Typography>
-                        <Typography variant="body1">{cap.writingLevel}/100</Typography>
+                        <Typography variant="body1">{typeof cap.writingLevel === 'number' && cap.lastAssessedAt ? `${cap.writingLevel}/100` : '—'}</Typography>
                       </Grid>
                     </Grid>
                   </CardContent>
@@ -417,7 +350,7 @@ const UserManager: React.FC = () => {
                 </Grid>
                 <Grid item xs={3}>
                   <Typography variant="body2" color="text.secondary">Total Time</Typography>
-                  <Typography variant="body1">{Math.round(selectedUser.practiceStats.total_practice_time / 60)} min</Typography>
+                  <Typography variant="body1">{Math.round(selectedUser.practiceStats.total_practice_time / 60000)} min</Typography>
                 </Grid>
                 <Grid item xs={3}>
                   <Typography variant="body2" color="text.secondary">Last Practice</Typography>
@@ -430,73 +363,11 @@ const UserManager: React.FC = () => {
                 </Grid>
               </Grid>
 
-              {/* Recent Transactions */}
-              <Typography variant="h6" gutterBottom>Recent Transactions</Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Amount</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Date</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedUser.recentTransactions.map((transaction, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{transaction.type}</TableCell>
-                        <TableCell>
-                          <Typography 
-                            color={transaction.amount > 0 ? 'success.main' : 'error.main'}
-                          >
-                            {transaction.amount > 0 ? '+' : ''}{transaction.amount}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{transaction.description}</TableCell>
-                        <TableCell>{formatDate(transaction.created_at)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Credit Adjustment Dialog */}
-      <Dialog open={creditDialogOpen} onClose={() => setCreditDialogOpen(false)}>
-        <DialogTitle>Adjust User Credits</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField
-              label="Credit Amount"
-              type="number"
-              value={creditAmount}
-              onChange={(e) => setCreditAmount(parseInt(e.target.value) || 0)}
-              helperText="Use positive numbers to add credits, negative to deduct"
-              fullWidth
-            />
-            <TextField
-              label="Description"
-              value={creditDescription}
-              onChange={(e) => setCreditDescription(e.target.value)}
-              multiline
-              rows={3}
-              fullWidth
-              required
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreditAdjustment} variant="contained">
-            Adjust Credits
-          </Button>
+          <Button onClick={() => setDetailsDialogOpen(false)}>关闭</Button>
         </DialogActions>
       </Dialog>
 

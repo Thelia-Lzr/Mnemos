@@ -29,12 +29,14 @@ interface VocabularyPracticeProps {
   practiceGroup: VocabularyPracticeGroup;
   onComplete: (results: PracticeResult[]) => void;
   onClose: () => void;
+  saving: boolean;
+  error: string;
 }
 
 const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({
   practiceGroup,
   onComplete,
-  onClose,
+  onClose, saving, error,
 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState('');
@@ -105,9 +107,10 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({
 
   if (isCompleted) {
     return (
-      <Dialog open={true} onClose={onClose} maxWidth="md" fullWidth>
+      <Dialog open={true} onClose={() => !saving && onClose()} maxWidth="md" fullWidth>
         <DialogTitle>练习完成！</DialogTitle>
         <DialogContent>
+          {error && <Alert severity="error">{error}</Alert>}
           <Box textAlign="center" py={3}>
             <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
             
@@ -156,10 +159,10 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose}>
+          <Button onClick={onClose} disabled={saving}>
             返回
           </Button>
-          <Button onClick={handleComplete} variant="contained">
+          <Button onClick={handleComplete} variant="contained" disabled={saving}>
             保存结果
           </Button>
         </DialogActions>

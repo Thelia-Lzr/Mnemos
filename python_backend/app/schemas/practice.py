@@ -113,6 +113,12 @@ class PracticeResultResponse(BaseModel):
         from_attributes = True
 
 
+class PracticeResultDetailResponse(BaseModel):
+    result: PracticeResultResponse
+    practiceGroup: PracticeGroupResponse
+    userAnswers: Dict[str, str]
+
+
 class PracticeAIAnalysisResponse(BaseModel):
     """AI 练习分析响应"""
     id: str
@@ -124,6 +130,9 @@ class PracticeAIAnalysisResponse(BaseModel):
     improvementSuggestions: Optional[List[str]] = None
     confidenceScore: Optional[int] = None
     aiModel: Optional[str] = None
+    userId: Optional[str] = None
+    tokensUsed: Optional[int] = None
+    createdAt: Optional[datetime] = None
     overallProgressDirection: Optional[str] = None
     progressMessage: Optional[str] = None
 

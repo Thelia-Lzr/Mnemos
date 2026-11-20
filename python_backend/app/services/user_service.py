@@ -12,7 +12,6 @@ from app.models.user import (
     UserCapability,
     UserLearningLanguage,
 )
-from app.models.payment import UserCredit
 
 
 class UserService:
@@ -158,51 +157,6 @@ class UserService:
         await self.db.commit()
         await self.db.refresh(learning_lang)
         return learning_lang
-
-    async def get_user_credits(self, user_id: str) -> Optional[UserCredit]:
-        """获取用户积分"""
-        result = await self.db.execute(
-            select(UserCredit).where(UserCredit.user_id == user_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def update_credits(
-        self,
-        user_id: str,
-        amount: int,
-        transaction_type: str,
-        description: Optional[str] = None,
-        reference_id: Optional[str] = None,
-    ) -> Optional[UserCredit]:
-        """更新用户积分"""
-        from app.models.user import CreditTransaction
-
-        credits = await self.get_user_credits(user_id)
-        if not credits:
-            credits = UserCredit(user_id=user_id, balance=0)
-            self.db.add(credits)
-
-        old_balance = credits.balance
-        credits.balance += amount
-        if amount > 0:
-            credits.total_earned += amount
-        else:
-            credits.total_spent += abs(amount)
-
-        # 创建交易记录
-        transaction = CreditTransaction(
-            user_id=user_id,
-            amount=amount,
-            balance_after=credits.balance,
-            transaction_type=transaction_type,
-            description=description,
-            reference_id=reference_id,
-        )
-        self.db.add(transaction)
-
-        await self.db.commit()
-        await self.db.refresh(credits)
-        return credits
 
     async def get_user_stats(self, user_id: str) -> Dict[str, Any]:
         """获取用户统计信息"""

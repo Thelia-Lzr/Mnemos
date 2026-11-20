@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const frontendPort = process.env.MNEMOS_TEST_FRONTEND_PORT || '3000';
+const frontendUrl = process.env.MNEMOS_TEST_FRONTEND_URL || `http://127.0.0.1:${frontendPort}`;
+
 export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
@@ -25,7 +28,7 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    baseURL: process.env.MNEMOS_TEST_FRONTEND_URL || 'http://127.0.0.1:3000',
+    baseURL: frontendUrl,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -71,8 +74,14 @@ export default defineConfig({
 
   webServer: process.env.MNEMOS_TEST_FRONTEND_URL ? undefined : {
     command: 'npm --prefix frontend start',
-    env: { HOST: '127.0.0.1', PORT: '3000', BROWSER: 'none' },
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
+    env: {
+      HOST: '127.0.0.1',
+      PORT: frontendPort,
+      BROWSER: 'none',
+      ...(process.env.MNEMOS_TEST_API_URL && { REACT_APP_API_URL: `${process.env.MNEMOS_TEST_API_URL}/api` }),
+    },
+    url: frontendUrl,
+    reuseExistingServer: !process.env.CI && !process.env.MNEMOS_TEST_API_URL,
+    timeout: 120_000,
   },
 });

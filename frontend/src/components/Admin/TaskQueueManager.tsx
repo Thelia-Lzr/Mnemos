@@ -32,7 +32,6 @@ import api from '../../services/api';
 import {
   Refresh as RefreshIcon,
   Delete as DeleteIcon,
-  Replay as RetryIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
 
@@ -46,7 +45,6 @@ interface Task {
   started_at?: string;
   completed_at?: string;
   progress: number;
-  retry_count: number;
   execution_time?: number;
   tokens_used?: number;
   error_message?: string;
@@ -72,7 +70,6 @@ const TaskQueueManager: React.FC = () => {
   const [totalTasks, setTotalTasks] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [clearDays, setClearDays] = useState(7);
   const [includeCompleted, setIncludeCompleted] = useState(true);
@@ -135,23 +132,6 @@ const TaskQueueManager: React.FC = () => {
     }
   };
 
-  const handleRetryTasks = async (taskIds: string[]) => {
-    try {
-      const response = await api.post('/admin/retry-failed-tasks', { taskIds });
-
-      if (response.data.success) {
-        showSnackbar(`Successfully retried ${response.data.data.retriedTasks} tasks`, 'success');
-        setSelectedTasks([]);
-        fetchData();
-      } else {
-        showSnackbar(response.data.message || 'Failed to retry tasks', 'error');
-      }
-    } catch (error) {
-      console.error('Failed to retry tasks:', error);
-      showSnackbar('Failed to retry tasks', 'error');
-    }
-  };
-
   const handleClearQueue = async () => {
     try {
       const response = await api.post('/admin/clear-queue', {
@@ -170,22 +150,6 @@ const TaskQueueManager: React.FC = () => {
     } catch (error) {
       console.error('Failed to clear queue:', error);
       showSnackbar('Failed to clear queue', 'error');
-    }
-  };
-
-  const handleTaskSelection = (taskId: string, selected: boolean) => {
-    if (selected) {
-      setSelectedTasks([...selectedTasks, taskId]);
-    } else {
-      setSelectedTasks(selectedTasks.filter(id => id !== taskId));
-    }
-  };
-
-  const handleSelectAll = (selected: boolean) => {
-    if (selected) {
-      setSelectedTasks(tasks.map(task => task.id));
-    } else {
-      setSelectedTasks([]);
     }
   };
 
@@ -210,7 +174,7 @@ const TaskQueueManager: React.FC = () => {
   if (loading && !metrics) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>Task Queue Management</Typography>
+        <Typography variant="h5" gutterBottom>任务队列管理</Typography>
         <LinearProgress />
       </Box>
     );
@@ -218,9 +182,9 @@ const TaskQueueManager: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
         <Typography variant="h5" component="h2">
-          Task Queue Management
+          任务队列管理
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
@@ -235,7 +199,7 @@ const TaskQueueManager: React.FC = () => {
             startIcon={<ClearIcon />}
             onClick={() => setClearDialogOpen(true)}
           >
-            Clear Queue
+            清理记录
           </Button>
         </Box>
       </Box>
@@ -405,51 +369,26 @@ const TaskQueueManager: React.FC = () => {
           <Typography variant="h6">
             Tasks ({statusFilter !== 'all' ? statusFilter : 'all'})
           </Typography>
-          {selectedTasks.length > 0 && (
-            <Button
-              variant="contained"
-              startIcon={<RetryIcon />}
-              onClick={() => handleRetryTasks(selectedTasks)}
-              disabled={!tasks.some(task => selectedTasks.includes(task.id) && task.status === 'failed')}
-            >
-              Retry Selected ({selectedTasks.length})
-            </Button>
-          )}
         </Box>
 
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell padding="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={tasks && selectedTasks.length === tasks.length && tasks.length > 0}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </TableCell>
                 <TableCell>Task ID</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>User ID</TableCell>
                 <TableCell>Created</TableCell>
                 <TableCell>Progress</TableCell>
-                <TableCell>Retry Count</TableCell>
                 <TableCell>Execution Time</TableCell>
                 <TableCell>Error</TableCell>
-                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
+              {!tasks.length && <TableRow><TableCell colSpan={8}>暂无任务记录</TableCell></TableRow>}
               {tasks.map((task) => (
                 <TableRow key={task.id}>
-                  <TableCell padding="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.includes(task.id)}
-                      onChange={(e) => handleTaskSelection(task.id, e.target.checked)}
-                    />
-                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                       {task.id.substring(0, 8)}...
@@ -484,13 +423,6 @@ const TaskQueueManager: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={task.retry_count} 
-                      size="small" 
-                      color={task.retry_count >= 3 ? 'error' : task.retry_count > 0 ? 'warning' : 'default'}
-                    />
-                  </TableCell>
-                  <TableCell>
                     {task.execution_time ? `${(task.execution_time / 1000).toFixed(1)}s` : '-'}
                   </TableCell>
                   <TableCell>
@@ -509,15 +441,6 @@ const TaskQueueManager: React.FC = () => {
                         {task.error_message}
                       </Typography>
                     ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton 
-                      onClick={() => handleRetryTasks([task.id])} 
-                      size="small"
-                      disabled={task.status !== 'failed' || task.retry_count >= 3}
-                    >
-                      <RetryIcon />
-                    </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
@@ -538,16 +461,17 @@ const TaskQueueManager: React.FC = () => {
         )}
       </Box>
 
-      {/* Clear Queue Dialog */}
+      {/* 清理记录 Dialog */}
       <Dialog open={clearDialogOpen} onClose={() => setClearDialogOpen(false)}>
-        <DialogTitle>Clear Task Queue</DialogTitle>
+        <DialogTitle>清理任务记录</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <TextField
-              label="Clear tasks older than (days)"
+              label="保留天数"
               type="number"
-              value={clearDays}
-              onChange={(e) => setClearDays(parseInt(e.target.value) || 7)}
+              value={clearDays || ''}
+              inputProps={{ min: 1, max: 3650 }}
+              onChange={(e) => setClearDays(Number(e.target.value))}
               fullWidth
             />
             <FormControlLabel
@@ -557,7 +481,7 @@ const TaskQueueManager: React.FC = () => {
                   onChange={(e) => setIncludeCompleted(e.target.checked)}
                 />
               }
-              label="Include completed tasks"
+              label="已完成任务"
             />
             <FormControlLabel
               control={
@@ -566,17 +490,17 @@ const TaskQueueManager: React.FC = () => {
                   onChange={(e) => setIncludeFailed(e.target.checked)}
                 />
               }
-              label="Include failed tasks"
+              label="失败任务"
             />
             <Alert severity="warning">
-              This action cannot be undone. Tasks will be permanently deleted from the queue.
+              符合保留期和状态条件的任务记录将被永久删除。
             </Alert>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setClearDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleClearQueue} variant="contained" color="error">
-            Clear Queue
+          <Button onClick={handleClearQueue} variant="contained" color="error" disabled={!Number.isInteger(clearDays) || clearDays < 1 || clearDays > 3650 || (!includeCompleted && !includeFailed)}>
+            清理记录
           </Button>
         </DialogActions>
       </Dialog>

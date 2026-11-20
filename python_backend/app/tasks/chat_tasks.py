@@ -144,7 +144,6 @@ def parse_intent_async(self, user_id: str, message: str, context: dict = None) -
 - language_learning: 学习对话
 - generate_practice: 生成练习
 - check_progress: 查看进度
-- check_credits: 查看积分
 - view_statistics: 查看统计
 - account_management: 账户管理（隐私敏感）
 """

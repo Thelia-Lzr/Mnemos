@@ -4,6 +4,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from uuid import UUID
 from enum import Enum
 
 
@@ -50,6 +51,8 @@ class VocabularyWordResponse(BaseModel):
     lastReviewedAt: Optional[datetime] = None
     nextReviewAt: Optional[datetime] = None
     reviewCount: int
+    addedAt: Optional[datetime] = None
+    lastReviewScore: int = 0
 
     class Config:
         from_attributes = True
@@ -87,13 +90,14 @@ class VocabularyPracticeRequest(BaseModel):
 
 class VocabularyPracticeResult(BaseModel):
     """词汇练习结果"""
-    wordId: str
-    word: str
-    userAnswer: str
-    correctAnswer: str
+    wordId: UUID
+    word: Optional[str] = None
+    userAnswer: Optional[str] = None
+    correctAnswer: Optional[str] = None
     isCorrect: bool
     responseTime: int  # 毫秒
-    masteryDelta: int  # 掌握度变化
+    masteryDelta: Optional[int] = Field(None, ge=-100, le=100)
+    score: Optional[int] = Field(None, ge=0, le=100)
 
 
 class VocabularySubmitPracticeRequest(BaseModel):

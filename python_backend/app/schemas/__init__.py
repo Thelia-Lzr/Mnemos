@@ -57,14 +57,6 @@ from app.schemas.pk import (
     PKMatchStatusResponse,
     PKStatsResponse,
 )
-from app.schemas.payment import (
-    PaymentOrderCreate,
-    PaymentOrderResponse,
-    RechargePackageResponse,
-    CreditBalanceResponse,
-    CreditTransactionResponse,
-    PaymentConfirmRequest,
-)
 from app.schemas.task import (
     AsyncTaskResponse,
     TaskStatusResponse,
@@ -138,13 +130,6 @@ __all__ = [
     "PKLeaderboardEntry",
     "PKMatchStatusResponse",
     "PKStatsResponse",
-    # Payment
-    "PaymentOrderCreate",
-    "PaymentOrderResponse",
-    "RechargePackageResponse",
-    "CreditBalanceResponse",
-    "CreditTransactionResponse",
-    "PaymentConfirmRequest",
     # Task
     "AsyncTaskResponse",
     "TaskStatusResponse",

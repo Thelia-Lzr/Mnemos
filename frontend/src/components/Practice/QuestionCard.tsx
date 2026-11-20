@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Card,
   CardContent,
+  TextField,
   Typography,
   RadioGroup,
   FormControlLabel,
@@ -31,6 +32,7 @@ interface QuestionCardProps {
   totalQuestions: number;
   onAnswer: (questionId: string, answer: string) => void;
   selectedAnswer?: string;
+  submitting: boolean;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -38,28 +40,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   questionNumber,
   totalQuestions,
   onAnswer,
-  selectedAnswer
+  selectedAnswer,
+  submitting
 }) => {
   const [currentAnswer, setCurrentAnswer] = useState(selectedAnswer || '');
   const [startTime] = useState(Date.now());
 
-  const handleAnswerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAnswerChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setCurrentAnswer(event.target.value);
   };
 
   const handleSubmit = () => {
-    console.log('QuestionCard handleSubmit called:', {
-      questionId: question.id,
-      currentAnswer,
-      questionNumber,
-      totalQuestions
-    });
-    
-    if (currentAnswer) {
-      onAnswer(question.id, currentAnswer);
-    } else {
-      console.warn('No answer selected, cannot submit');
-    }
+    if (currentAnswer.trim() && !submitting) onAnswer(question.id, currentAnswer);
   };
 
   const getDifficultyColor = (difficulty: number) => {
@@ -95,7 +87,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </Typography>
 
         {/* Answer Options */}
-        <RadioGroup
+        {question.options.length === 0 ? (
+          <TextField label="答案" fullWidth multiline value={currentAnswer} onChange={handleAnswerChange} sx={{ mb: 3 }} />
+        ) : <RadioGroup
           value={currentAnswer}
           onChange={handleAnswerChange}
           sx={{ mb: 4 }}
@@ -120,7 +114,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               }}
             />
           ))}
-        </RadioGroup>
+        </RadioGroup>}
 
         {/* Question Metadata */}
         {(question.vocabularyWords.length > 0 || question.grammarPoints.length > 0) && (
@@ -174,11 +168,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             variant="contained"
             size="large"
             onClick={handleSubmit}
-            disabled={!currentAnswer}
+            disabled={submitting || !currentAnswer.trim()}
             startIcon={<CheckCircle />}
             sx={{ minWidth: 200 }}
           >
-            {questionNumber === totalQuestions ? '完成练习' : '下一题'}
+            {submitting ? '正在提交…' : questionNumber === totalQuestions ? '完成练习' : '下一题'}
           </Button>
         </Box>
       </CardContent>

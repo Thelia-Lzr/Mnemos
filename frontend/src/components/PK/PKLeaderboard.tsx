@@ -1,3 +1,4 @@
+import api from '../../services/api';
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -23,7 +24,7 @@ import { EmojiEvents, TrendingUp, Person } from '@mui/icons-material';
 interface LeaderboardEntry {
   userId: string;
   username: string;
-  currentMMR: number;
+  currentMmr: number;
   totalBattles: number;
   wins: number;
   winRate: number;
@@ -47,20 +48,13 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
   }, [language]);
 
   const fetchLeaderboard = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      const response = await fetch(`/api/pk/leaderboard?language=${language}&limit=50`, {
-
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setLeaderboard(data.data);
-      } else {
-        throw new Error('Failed to fetch leaderboard');
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Unknown error');
+      const response = await api.get<{ data: LeaderboardEntry[] }>(`/pk/leaderboard/${language}`);
+      setLeaderboard(response.data.data);
+    } catch {
+      setError('无法加载排行榜。');
     } finally {
       setLoading(false);
     }
@@ -68,16 +62,10 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetch(`/api/pk/stats?language=${language}`, {
-
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUserStats(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching user stats:', error);
+      const response = await api.get('/pk/stats', { params: { language } });
+      setUserStats(response.data);
+    } catch {
+      setUserStats(null);
     }
   };
 
@@ -174,13 +162,13 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
                       </TableCell>
                       <TableCell align="center">
                         <Typography variant="body1" fontWeight="bold">
-                          {entry.currentMMR}
+                          {entry.currentMmr}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
                         <Chip
-                          label={getMMRTitle(entry.currentMMR)}
-                          color={getMMRColor(entry.currentMMR)}
+                          label={getMMRTitle(entry.currentMmr)}
+                          color={getMMRColor(entry.currentMmr)}
                           size="small"
                         />
                       </TableCell>
@@ -218,11 +206,11 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
                   当前MMR
                 </Typography>
                 <Typography variant="h4" color="primary">
-                  {userStats.currentMMR}
+                  {userStats.currentMmr}
                 </Typography>
                 <Chip
-                  label={getMMRTitle(userStats.currentMMR)}
-                  color={getMMRColor(userStats.currentMMR)}
+                  label={getMMRTitle(userStats.currentMmr)}
+                  color={getMMRColor(userStats.currentMmr)}
                   size="small"
                 />
               </Paper>
@@ -232,7 +220,7 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
                   历史最高MMR
                 </Typography>
                 <Typography variant="h4" color="warning.main">
-                  {userStats.peakMMR}
+                  {userStats.peakMmr}
                 </Typography>
               </Paper>
 
@@ -277,41 +265,6 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
                 </Typography>
               </Paper>
 
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  平局
-                </Typography>
-                <Typography variant="h5">
-                  {userStats.draws}
-                </Typography>
-              </Paper>
-
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Credits收入
-                </Typography>
-                <Typography variant="h5" color="success.main">
-                  +{userStats.totalCreditsEarned}
-                </Typography>
-              </Paper>
-
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Credits支出
-                </Typography>
-                <Typography variant="h5" color="error.main">
-                  -{userStats.totalCreditsSpent}
-                </Typography>
-              </Paper>
-
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  平均MMR变化
-                </Typography>
-                <Typography variant="h5">
-                  ±{userStats.averageMMRChange.toFixed(1)}
-                </Typography>
-              </Paper>
             </Box>
           </CardContent>
         </Card>

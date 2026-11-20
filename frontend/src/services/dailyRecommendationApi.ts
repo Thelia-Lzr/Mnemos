@@ -81,7 +81,10 @@ export class DailyRecommendationApi {
     const recommendationData = raw?.recommendationData || {};
 
     const quickPracticeOptions =
-      raw?.quickPracticeOptions || recommendationData.quick_practice_options || [];
+      (raw?.quickPracticeOptions ?? recommendationData.quick_practice_options ?? []).map((option: any) => ({
+        ...option,
+        difficultyLevel: option.difficultyLevel ?? option.difficulty ?? option.difficulty_level,
+      }));
 
     const normalizedRecommendations: LearningRecommendation[] =
       Array.isArray(raw?.recommendations) && raw.recommendations.length > 0
@@ -121,7 +124,13 @@ export class DailyRecommendationApi {
       basedOnCapability: raw?.basedOnCapability,
       basedOnMilestones: raw?.basedOnMilestones || [],
       basedOnVocabulary: raw?.basedOnVocabulary || [],
-      userFeedback: raw?.userFeedback,
+      userFeedback: raw?.userFeedback ?? (raw?.feedbackRating != null ? {
+        rating: raw.feedbackRating,
+        isHelpful: Boolean(raw.feedbackIsHelpful),
+        comments: raw.feedbackComments,
+        followedRecommendations: recommendationData.feedback_followed_ids ?? [],
+        submittedAt: raw.viewedAt ?? raw.date,
+      } : undefined),
       isViewed: Boolean(raw?.isViewed),
       viewedAt: raw?.viewedAt,
       aiModel: raw?.aiModel || 'fallback/local',
@@ -166,39 +175,18 @@ export class DailyRecommendationApi {
   }
 
   /**
-   * Generate new daily recommendation (asynchronous)
-   */
-  static async generateRecommendationAsync(language: string): Promise<TaskResponse> {
-    await this.generateRecommendation(language);
-    return {
-      taskId: 'sync-generated',
-      message: 'Recommendation generated synchronously',
-      status: 'completed'
-    };
-  }
-
-  /**
-   * Generate quick practice based on recommendation option
-   */
-  static async generateQuickPractice(language: string, practiceOptionId: string): Promise<TaskResponse> {
-    throw new Error('当前后端未提供 quick-practice 端点');
-  }
-
-  /**
    * Submit feedback for daily recommendation
    */
   static async submitFeedback(
-    language: string, 
+    language: string,
+    recommendationId: string,
     feedback: Omit<RecommendationFeedback, 'submittedAt'>
   ): Promise<void> {
-    const recommendation = await this.getTodaysRecommendation(language);
-
     const response = await api.post<ApiResponse<void>>(
       `/daily-recommendations/${language}/feedback`,
       {
-        recommendation_id: recommendation.id,
-        rating: feedback.rating,
-        isHelpful: feedback.isHelpful
+        recommendation_id: recommendationId,
+        request: { rating: feedback.rating, isHelpful: feedback.isHelpful, comments: feedback.comments, followedRecommendations: feedback.followedRecommendations }
       }
     );
     

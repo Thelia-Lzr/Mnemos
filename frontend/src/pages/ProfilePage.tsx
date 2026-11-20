@@ -30,7 +30,8 @@ import {
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/store';
-import userLanguageApi, { UserLanguage as UserLanguageType, CreateUserLanguageRequest } from '../services/userLanguageApi';
+import userLanguageApi, { UserLanguage as UserLanguageType } from '../services/userLanguageApi';
+import ErrorHandler from '../utils/errorHandler';
 import PracticeHistorySummary from '../components/Profile/PracticeHistorySummary';
 
 // Use the imported type
@@ -40,6 +41,9 @@ const ProfilePage: React.FC = () => {
   const profile = useSelector((state: RootState) => state.workspace.profile);
   const [languages, setLanguages] = useState<UserLanguage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLanguage, setEditingLanguage] = useState<UserLanguage | null>(null);
   const [formData, setFormData] = useState({
@@ -62,11 +66,12 @@ const ProfilePage: React.FC = () => {
   }, []);
 
   const fetchUserLanguages = async () => {
+    setLoadError(false);
     try {
       const userLanguages = await userLanguageApi.getUserLanguages();
       setLanguages(userLanguages);
     } catch (error) {
-      console.error('Error fetching user languages:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -80,6 +85,7 @@ const ProfilePage: React.FC = () => {
       targetLevel: '',
       isPrimary: languages.length === 0
     });
+    setFormError('');
     setDialogOpen(true);
   };
 
@@ -91,28 +97,32 @@ const ProfilePage: React.FC = () => {
       targetLevel: language.targetLevel || '',
       isPrimary: language.isPrimary
     });
+    setFormError('');
     setDialogOpen(true);
   };
 
   const handleSaveLanguage = async () => {
+    setSaving(true);
+    setFormError('');
     try {
       if (editingLanguage) {
         // Update existing language
         await userLanguageApi.updateUserLanguage(formData.language, {
           currentLevel: formData.currentLevel,
-          targetLevel: formData.targetLevel || undefined,
+          targetLevel: formData.targetLevel || null,
           isPrimary: formData.isPrimary
         });
       } else {
         // Add new language
-        await userLanguageApi.addUserLanguage(formData as CreateUserLanguageRequest);
+        await userLanguageApi.addUserLanguage({ ...formData, targetLevel: formData.targetLevel || null });
       }
       
       await fetchUserLanguages();
       setDialogOpen(false);
-    } catch (error: any) {
-      console.error('Error saving language:', error);
-      alert(error.response?.data?.error || '保存失败');
+    } catch (error) {
+      setFormError(ErrorHandler.getErrorMessage(error));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -123,7 +133,7 @@ const ProfilePage: React.FC = () => {
         await fetchUserLanguages();
       } catch (error) {
         console.error('Error deleting language:', error);
-        alert('删除失败');
+        ErrorHandler.showError('删除语言失败，请重试。');
       }
     }
   };
@@ -134,7 +144,7 @@ const ProfilePage: React.FC = () => {
       await fetchUserLanguages();
     } catch (error) {
       console.error('Error setting primary language:', error);
-      alert('设置主要语言失败');
+      ErrorHandler.showError('设置主要语言失败，请重试。');
     }
   };
 
@@ -197,7 +207,9 @@ const ProfilePage: React.FC = () => {
             </Button>
           </Box>
 
-          {languages.length === 0 ? (
+          {loadError ? (
+            <Alert severity="error" action={<Button onClick={fetchUserLanguages}>重试</Button>}>无法加载学习语言。</Alert>
+          ) : languages.length === 0 ? (
             <Alert severity="info">
               还没有添加学习语言。点击"添加语言"开始设置您的学习目标。
             </Alert>
@@ -276,20 +288,22 @@ const ProfilePage: React.FC = () => {
       </Card>
 
       {/* Add/Edit Language Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
+      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth="sm" fullWidth aria-labelledby="profile-language-title">
+        <DialogTitle id="profile-language-title">
           {editingLanguage ? '编辑语言' : '添加语言'}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
+            {formError && <Alert severity="error">{formError}</Alert>}
             <FormControl fullWidth disabled={!!editingLanguage}>
-              <InputLabel>语言</InputLabel>
+              <InputLabel id="profile-language">语言</InputLabel>
               <Select
                 value={formData.language}
+                labelId="profile-language"
                 label="语言"
                 onChange={(e) => setFormData({ ...formData, language: e.target.value })}
               >
-                {languageOptions.map((option) => (
+                {languageOptions.filter((option) => editingLanguage?.language === option.value || !languages.some((item) => item.language === option.value)).map((option) => (
                   <MenuItem key={option.value} value={option.value}>
                     {option.label}
                   </MenuItem>
@@ -298,9 +312,10 @@ const ProfilePage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel>当前水平</InputLabel>
+              <InputLabel id="profile-current">当前水平</InputLabel>
               <Select
                 value={formData.currentLevel}
+                labelId="profile-current"
                 label="当前水平"
                 onChange={(e) => setFormData({ ...formData, currentLevel: e.target.value })}
               >
@@ -313,9 +328,10 @@ const ProfilePage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel>目标水平（可选）</InputLabel>
+              <InputLabel id="profile-target">目标水平（可选）</InputLabel>
               <Select
                 value={formData.targetLevel}
+                labelId="profile-target"
                 label="目标水平（可选）"
                 onChange={(e) => setFormData({ ...formData, targetLevel: e.target.value })}
               >
@@ -340,13 +356,13 @@ const ProfilePage: React.FC = () => {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>
+          <Button onClick={() => setDialogOpen(false)} disabled={saving}>
             取消
           </Button>
           <Button 
             onClick={handleSaveLanguage}
             variant="contained"
-            disabled={!formData.language || !formData.currentLevel}
+            disabled={saving || !formData.language || !formData.currentLevel}
           >
             保存
           </Button>

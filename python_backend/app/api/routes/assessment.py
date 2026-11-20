@@ -221,27 +221,7 @@ async def comprehensive_assessment(
     current_user: User = Depends(get_workspace_user),
 ):
     """综合评估"""
-    # TODO: 实现综合评估逻辑
-    # 目前返回一个示例响应
-
-    return {
-        "success": True,
-        "data": {
-            "overallLevel": "B1",
-            "confidenceScore": 65,
-            "listeningLevel": 60,
-            "speakingLevel": 55,
-            "readingLevel": 70,
-            "writingLevel": 65,
-            "strengths": ["Reading comprehension", "Vocabulary recognition"],
-            "weaknesses": ["Speaking fluency", "Listening speed"],
-            "recommendations": [
-                "Practice listening with podcasts",
-                "Join conversation groups",
-                "Review intermediate grammar",
-            ],
-        },
-    }
+    raise HTTPException(status_code=501, detail="综合评估暂未开放。")
 
 
 @router.get("/history/{language}")
@@ -270,15 +250,4 @@ async def request_reassessment(
     current_user: User = Depends(get_workspace_user),
 ):
     """发起再评估"""
-    # TODO: 实现再评估逻辑
-
-    return {
-        "success": True,
-        "data": {
-            "reassessmentId": str(uuid.uuid4()),
-            "language": request.get("language", "en"),
-            "status": "pending",
-            "questions": [],
-            "expiresAt": None,
-        },
-    }
+    raise HTTPException(status_code=501, detail="重新评估暂未开放。")

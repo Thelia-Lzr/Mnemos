@@ -148,7 +148,6 @@ export interface FollowUpResponse {
   answer: string;
   relatedConcepts?: string[];
   additionalTips?: string[];
-  creditCost: number;
 }
 
 class PracticeApi {
@@ -167,7 +166,16 @@ class PracticeApi {
   }
 
   private extractPracticeGroup(responseData: any): PracticeGroup {
-    return (responseData?.data ?? responseData) as PracticeGroup;
+    const group = (responseData?.data ?? responseData) as PracticeGroup;
+    return {
+      ...group,
+      focusAreas: group.focusAreas ?? [],
+      questions: (group.questions ?? []).map((question) => ({
+        ...question,
+        vocabularyWords: question.vocabularyWords ?? [],
+        grammarPoints: question.grammarPoints ?? [],
+      })),
+    };
   }
 
   /**
@@ -192,7 +200,7 @@ class PracticeApi {
    */
   async getPracticeGroup(id: string): Promise<PracticeGroup> {
     const response = await api.get(`/practice/group/${id}`);
-    return response.data.data;
+    return this.extractPracticeGroup(response.data);
   }
 
   /**
@@ -307,13 +315,18 @@ class PracticeApi {
    */
   async submitPractice(practiceGroupId: string, request: SubmitPracticeRequest): Promise<PracticeResult> {
     const response = await api.post(`/practice/group/${practiceGroupId}/submit`, request);
-    return response.data.data;
+    return response.data;
   }
 
   /**
    * Get practice history
    */
-  async getPracticeHistory(limit: number = 20, offset: number = 0): Promise<{
+  async getPracticeHistory(
+    limit: number = 20,
+    offset: number = 0,
+    filters?: { language?: string; difficulty?: string; search?: string },
+    signal?: AbortSignal,
+  ): Promise<{
     data: PracticeHistoryItem[];
     pagination: {
       limit: number;
@@ -322,7 +335,8 @@ class PracticeApi {
     };
   }> {
     const response = await api.get('/practice/history', {
-      params: { limit, offset }
+      params: { limit, offset, ...filters },
+      signal,
     });
     return response.data;
   }
@@ -441,14 +455,15 @@ class PracticeApi {
     const response = await api.post(`/practice/result/${practiceResultId}/analyze`, {
       userAnswers
     });
-    return response.data.data;
+    return response.data;
   }
 
   /**
    * Get existing AI analysis for practice result
    */
   async getPracticeAnalysis(practiceResultId: string): Promise<AIAnalysis | null> {
-    return null;
+    const response = await api.get<AIAnalysis | null>(`/practice/result/${practiceResultId}/analysis`);
+    return response.data;
   }
 
   /**
@@ -459,7 +474,11 @@ class PracticeApi {
     practiceGroup: PracticeGroup;
     userAnswers: Record<string, string>;
   }> {
-    throw new Error('当前后端未提供练习结果详情端点');
+    const response = await api.get(`/practice/result/${practiceResultId}`);
+    return {
+      ...response.data,
+      practiceGroup: this.extractPracticeGroup(response.data.practiceGroup)
+    };
   }
 
   /**
@@ -491,13 +510,11 @@ class PracticeApi {
   async askQuestionFollowUpStream(
     request: QuestionFollowUpRequest,
     onChunk: (chunk: string) => void,
-    onCreditCost: (cost: number) => void,
     onEnd: () => void,
     onError: (error: Error) => void
   ): Promise<void> {
     try {
       const data = await this.askQuestionFollowUp(request);
-      onCreditCost(data.creditCost || 0);
       onChunk(data.answer || '');
       onEnd();
     } catch (error) {
@@ -511,13 +528,11 @@ class PracticeApi {
   async askPracticeGroupFollowUpStream(
     request: PracticeGroupFollowUpRequest,
     onChunk: (chunk: string) => void,
-    onCreditCost: (cost: number) => void,
     onEnd: () => void,
     onError: (error: Error) => void
   ): Promise<void> {
     try {
       const data = await this.askPracticeGroupFollowUp(request);
-      onCreditCost(data.creditCost || 0);
       onChunk(data.answer || '');
       onEnd();
     } catch (error) {

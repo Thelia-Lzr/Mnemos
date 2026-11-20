@@ -212,7 +212,7 @@ const PKMatchingInterface: React.FC<PKMatchingInterfaceProps> = ({
         <DialogTitle>取消匹配</DialogTitle>
         <DialogContent>
           <Typography>
-            确定要取消匹配吗？已扣除的2个Credits不会退还。
+            确定要取消匹配吗？
           </Typography>
         </DialogContent>
         <DialogActions>
