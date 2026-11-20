@@ -37,7 +37,7 @@ import PracticeHistorySummary from '../components/Profile/PracticeHistorySummary
 type UserLanguage = UserLanguageType;
 
 const ProfilePage: React.FC = () => {
-  const user = useSelector((state: RootState) => state.auth.user);
+  const profile = useSelector((state: RootState) => state.workspace.profile);
   const [languages, setLanguages] = useState<UserLanguage[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -163,11 +163,11 @@ const ProfilePage: React.FC = () => {
             基本信息
           </Typography>
           <Typography variant="body1">
-            用户名: {user?.username}
+            资料名称 · {profile?.username || '本地工作台'}
           </Typography>
-          <Typography variant="body1">
-            邮箱: {user?.email}
-          </Typography>
+          {profile?.email && !profile.email.endsWith('@mnemos.example.com') && (
+            <Typography variant="body1">邮箱 · {profile.email}</Typography>
+          )}
         </CardContent>
       </Card>
 

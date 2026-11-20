@@ -6,9 +6,10 @@ import logging
 from typing import Dict, Any
 from datetime import date
 
+from app.schemas.ai import AIFeature
+from app.services.ai_service import call_ai_for_worker
 from app.tasks.celery_app import celery_app
 from app.core.database import get_database_session
-from app.services.openrouter_service import get_openrouter_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class DatabaseTask(Task):
             self._db.close()
 
 
-@celery_app.task(bind=True, base=DatabaseTask, max_retries=3)
+@celery_app.task(bind=True, max_retries=3)
 def generate_daily_recommendation_async(
     self,
     user_id: str,
@@ -52,8 +53,6 @@ def generate_daily_recommendation_async(
             meta={'current': 10, 'total': 100, 'status': 'Starting recommendation generation...'}
         )
 
-        openrouter = get_openrouter_service()
-        model = openrouter.select_model('exercise_generation')
 
         self.update_state(
             state='PROGRESS',
@@ -97,10 +96,9 @@ def generate_daily_recommendation_async(
             meta={'current': 80, 'total': 100, 'status': 'Finalizing recommendations...'}
         )
 
-        response = openrouter.call_ai(
-            model=model,
+        response = call_ai_for_worker(
+            AIFeature.DAILY_RECOMMENDATION,
             prompt=prompt,
-            user_id=user_id,
         )
 
         self.update_state(

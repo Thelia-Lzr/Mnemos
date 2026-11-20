@@ -40,7 +40,7 @@ export class ErrorHandler {
       // Server responded with error status
       const { status, data } = error.response;
       apiError = {
-        message: data?.message || '服务器错误',
+        message: (typeof data?.detail === 'string' && data.detail) || data?.message || data?.error || '服务器错误',
         statusCode: status,
         code: data?.code,
         details: data?.details
@@ -127,25 +127,11 @@ export class ErrorHandler {
   }
 
   // Handle specific error types
-  static handleAuthError(error: ApiError) {
-    if (error.statusCode === 401) {
-      this.showError('登录已过期，请重新登录');
-      // Redirect to login page
-      setTimeout(() => {
-        window.location.href = '/auth';
-      }, 2000);
-    } else if (error.statusCode === 403) {
-      this.showError('您没有权限执行此操作');
-    } else {
-      this.showError(error);
-    }
-  }
-
   static handleValidationError(error: ApiError) {
-    if (error.details && Array.isArray(error.details)) {
+    if (Array.isArray(error.details) && error.details.length) {
       // Show first validation error
       const firstError = error.details[0];
-      this.showError(firstError.message || firstError);
+      this.showError(firstError.msg || firstError.message || error.message);
     } else {
       this.showError(error.message || '输入数据验证失败');
     }
@@ -159,7 +145,7 @@ export class ErrorHandler {
     if (error.statusCode === 500) {
       this.showError('服务器内部错误，请稍后重试');
     } else if (error.statusCode === 503) {
-      this.showError('服务暂时不可用，请稍后重试');
+      this.showError(error);
     } else {
       this.showError(error);
     }

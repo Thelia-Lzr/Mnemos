@@ -1,50 +1,22 @@
 # 设计文档
 
-## 概述
+本页的本地工作台和 AI 路由章节描述当前实现。其余学习模块保留早期详细设计，作为业务语义参考。运行方式见[项目 README](../../../README.md#-快速开始)。
 
-AI语言学习辅助网页应用是一个基于OpenRouter API的现代化语言学习平台，采用微服务架构和响应式设计。该应用支持英语、日语、法语三种语言的多水平学习，通过AI驱动的个性化学习体验、智能练习系统、社交竞技功能和科学的记忆管理，为用户提供全面的语言学习解决方案。
+## 当前总体架构
 
-## 架构
-
-### 整体架构
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   前端应用      │    │   后端API服务   │    │   外部服务      │
-│                 │    │                 │    │                 │
-│ • React/Vue.js  │◄──►│ • Node.js/      │◄──►│ • OpenRouter    │
-│ • 响应式UI      │    │   Express       │    │   API           │
-│ • 实时通信      │    │ • WebSocket     │    │ • 支付网关      │
-│ • PWA支持       │    │ • 认证授权      │    │ • 邮件服务      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                       ┌─────────────────┐
-                       │   异步处理层    │
-                       │                 │
-                       │ • 消息队列      │
-                       │ • 任务调度      │
-                       │ • 负载均衡      │
-                       │ • 结果缓存      │
-                       └─────────────────┘
-                                │
-                       ┌─────────────────┐
-                       │   数据存储      │
-                       │                 │
-                       │ • PostgreSQL    │
-                       │ • Redis缓存     │
-                       │ • 文件存储      │
-                       └─────────────────┘
+```mermaid
+flowchart LR
+    Browser["React · MUI"] --> FastAPI
+    FastAPI --> Store[("PostgreSQL")]
+    Worker["Celery · Redis"] --> Store
+    FastAPI --> AI["按功能执行 AI 队列"]
+    Worker --> AI
+    AI --> Responses["Responses API"]
+    AI --> Codex["本机 Codex"]
+    AI --> Claude["本机 Claude Code"]
 ```
 
-### 微服务架构
-- **用户服务** - 用户管理、认证、权限控制
-- **学习服务** - AI聊天、材料分析、水平评估
-- **练习服务** - 练习生成、答题记录、成绩分析
-- **词汇服务** - 生词表管理、掌握度跟踪、遗忘曲线
-- **匹配服务** - PK匹配、MMR计算、实时对战
-- **支付服务** - Credit管理、支付处理、充值套餐管理
-- **通知服务** - 每日一言、学习提醒、进度通知
-- **管理服务** - 系统统计、用户管理、套餐配置
-- **任务队列服务** - AI请求异步处理、任务调度、负载均衡
+在正常开发入口下，FastAPI 监听 `127.0.0.1`。浏览器导航直接进入工作台，业务路由通过 `get_workspace_user` 获取本地资料。Alembic 创建单行 `workspace_settings`，保存固定资料 ID。唯一旧资料直接关联，其他情况创建新资料，旧记录及外键保留。配置 `WORKSPACE_USER_ID` 可按 UUID 使用另一份已有资料。
 
 ## 组件和接口
 
@@ -54,7 +26,7 @@ AI语言学习辅助网页应用是一个基于OpenRouter API的现代化语言�
 ```typescript
 // 主要页面组件
 interface PageComponents {
-  AuthPage: React.FC          // 登录注册页面
+  AISettingsPage: React.FC    // 提供方配置与功能路由
   DashboardPage: React.FC     // 用户仪表板
   ChatPage: React.FC          // AI聊天学习界面
   PracticePage: React.FC      // 练习管理页面
@@ -109,7 +81,6 @@ interface AdminComponents {
   PackageEditor: React.FC<{package?: RechargePackage, onSave: (pkg: RechargePackage) => void}>
   UserCreditManager: React.FC<{users: User[]}>
   SystemStats: React.FC<{stats: SystemStatistics}>
-  OpenRouterConfig: React.FC<{config: OpenRouterConfig, onUpdate: (config: OpenRouterConfig) => void}>
   APIKeyTester: React.FC<{onTest: (apiKey: string) => Promise<TestResult>}>
   APIUsageStats: React.FC<{stats: APIUsageStatistics}>
 }
@@ -121,10 +92,7 @@ interface AdminComponents {
 ```typescript
 interface UserAPI {
   // 认证相关
-  POST /api/auth/register
-  POST /api/auth/login
-  POST /api/auth/logout
-  GET  /api/auth/profile
+  GET  /api/users/profile
   
   // 用户配置
   PUT  /api/users/preferences
@@ -286,208 +254,22 @@ interface AdminAPI {
   POST /api/admin/retry-failed-tasks
   POST /api/admin/clear-queue
   
-  // OpenRouter API密钥管理
-  GET  /api/admin/openrouter/config
-  POST /api/admin/openrouter/test-key
-  PUT  /api/admin/openrouter/config
-  GET  /api/admin/openrouter/usage-stats
-  GET  /api/admin/openrouter/models
 }
 ```
 
-### OpenRouter API集成
+### AI 提供方与路由
 
-#### OpenRouter配置管理
-```typescript
-interface OpenRouterConfig {
-  // API密钥配置
-  apiKey: string
-  baseUrl: string
-  
-  // 连接配置
-  timeout: number
-  maxRetries: number
-  retryDelay: number
-  
-  // 模型配置
-  defaultModels: Record<TaskType, string>
-  modelConfigs: ModelConfig[]
-  
-  // 使用限制
-  dailyTokenLimit?: number
-  monthlyTokenLimit?: number
-  costThreshold?: number
-  
-  // 状态信息
-  isActive: boolean
-  lastTestedAt?: Date
-  testStatus: APITestStatus
-  
-  updatedAt: Date
-  updatedBy: string
-}
+| API | 用途 |
+| --- | --- |
+| `GET /api/ai-settings` | 读取配置版本、提供方及队列 |
+| `PUT /api/ai-settings` | 按版本号整体保存配置和路由 |
+| `POST /api/ai-settings/profiles/{id}/test` | 向指定已保存配置发送短文本测试 |
 
-interface APITestResult {
-  success: boolean
-  responseTime: number
-  availableModels: string[]
-  errorMessage?: string
-  
-  // 连接测试详情
-  connectionTest: {
-    success: boolean
-    latency: number
-    error?: string
-  }
-  
-  // 模型测试详情
-  modelTests: ModelTestResult[]
-  
-  // 使用统计
-  currentUsage?: {
-    tokensUsed: number
-    requestsCount: number
-    costEstimate: number
-  }
-  
-  testedAt: Date
-}
-
-interface ModelTestResult {
-  model: string
-  success: boolean
-  responseTime: number
-  tokensUsed: number
-  error?: string
-  sampleResponse?: string
-}
-
-enum APITestStatus {
-  UNTESTED = "untested",
-  TESTING = "testing",
-  SUCCESS = "success",
-  FAILED = "failed",
-  EXPIRED = "expired"
-}
-
-interface APIUsageStatistics {
-  // 时间范围统计
-  daily: UsagePeriodStats
-  weekly: UsagePeriodStats
-  monthly: UsagePeriodStats
-  
-  // 模型使用分布
-  modelUsage: Record<string, ModelUsageStats>
-  
-  // 成本分析
-  costAnalysis: CostAnalysis
-  
-  // 性能指标
-  performanceMetrics: PerformanceMetrics
-  
-  generatedAt: Date
-}
-
-interface UsagePeriodStats {
-  totalRequests: number
-  totalTokens: number
-  totalCost: number
-  averageResponseTime: number
-  errorRate: number
-}
-
-interface ModelUsageStats {
-  requestCount: number
-  tokenCount: number
-  averageTokensPerRequest: number
-  averageResponseTime: number
-  errorCount: number
-  totalCost: number
-}
-
-interface CostAnalysis {
-  totalCost: number
-  costByModel: Record<string, number>
-  costByTaskType: Record<TaskType, number>
-  projectedMonthlyCost: number
-  costTrend: CostTrendPoint[]
-}
-
-interface CostTrendPoint {
-  date: string
-  cost: number
-  tokens: number
-  requests: number
-}
-
-interface PerformanceMetrics {
-  averageResponseTime: number
-  p95ResponseTime: number
-  p99ResponseTime: number
-  uptime: number
-  errorRate: number
-  throughput: number
-}
-```
-
-#### API密钥管理服务
-```typescript
-interface OpenRouterConfigService {
-  // 配置管理
-  getConfig(): Promise<OpenRouterConfig>
-  updateConfig(config: Partial<OpenRouterConfig>): Promise<OpenRouterConfig>
-  
-  // API密钥测试
-  testAPIKey(apiKey: string): Promise<APITestResult>
-  validateKeyFormat(apiKey: string): boolean
-  
-  // 服务重新初始化
-  reinitializeService(config: OpenRouterConfig): Promise<boolean>
-  
-  // 使用统计
-  getUsageStats(timeRange?: TimeRange): Promise<APIUsageStatistics>
-  
-  // 模型管理
-  getAvailableModels(): Promise<ModelInfo[]>
-  updateModelConfig(model: string, config: Partial<ModelConfig>): Promise<void>
-}
-
-interface ModelInfo {
-  id: string
-  name: string
-  description: string
-  contextLength: number
-  pricing: {
-    prompt: number
-    completion: number
-  }
-  capabilities: string[]
-  isAvailable: boolean
-}
-
-interface TimeRange {
-  start: Date
-  end: Date
-}
-```
-
-#### AI模型选择策略
-```typescript
-interface AIModelStrategy {
-  // 根据任务类型选择模型
-  selectModel(task: TaskType, language: Language): string
-  
-  // 任务类型定义
-  enum TaskType {
-    CONVERSATION = "conversation",      // 日常对话学习
-    MATERIAL_ANALYSIS = "analysis",     // 材料分析
-    EXERCISE_GENERATION = "exercise",   // 练习生成
-    LEVEL_ASSESSMENT = "assessment",    // 水平评估
-    VOCABULARY_EXTRACTION = "vocab",    // 词汇提取
-    FUNCTION_CALLING = "function",      // 功能调用理解
-    INTENT_RECOGNITION = "intent"       // 意图识别
-  }
-}
+- 配置记录使用 UUID，包含名称、提供方、模型和超时。Responses API 额外使用完整的 `/responses` 地址、可选 Bearer 密钥和最大输出 Token。保存请求省略密钥时，同端点沿用已有密钥，传入 `null` 时清除密钥，更换端点时须重新录入。密钥字段由后端保存于 PostgreSQL，读接口只返回 `has_api_key`。
+- 路由保存为功能键到有序配置 ID 数组的映射。每个队列最多五项，配置 ID 唯一且必须存在。保存时检查版本，冲突返回 HTTP 409。删除配置与移除所有队列引用在同一次更新中提交。
+- 功能键覆盖 AI 对话、材料分析、练习生成、结果分析、练习追问、词汇提取、词汇练习、每日推荐、聊天功能识别和意图识别。能力评估的现有量表计算由业务代码执行。
+- HTTP 与 Celery 请求读取同一份 PostgreSQL 配置。使用功能队列，空队列继承默认队列。网络错误、HTTP 错误、CLI 失败、超时、空响应或结构化结果无效时继续下一项。队列耗尽时提供可读错误，每日推荐可使用规则结果。
+- Responses 适配器发送普通文本消息，处理 `output_text` 和分段输出，读取服务方提供的 Token 数据。CLI 适配器使用临时目录和无交互启动参数，禁用模型操作工具，从标准输入传入提示词。
 
 #### AI功能调用系统
 ```typescript
@@ -565,22 +347,6 @@ interface FunctionResult {
   actionUrl?: string
 }
 ```
-
-#### API调用管理
-```typescript
-interface OpenRouterService {
-  // 统一的API调用接口
-  callAI(model: string, prompt: string, context?: any): Promise<AIResponse>
-  
-  // 异步AI调用接口
-  callAIAsync(model: string, prompt: string, context?: any): Promise<string> // 返回任务ID
-  
-  // Token使用跟踪
-  trackTokenUsage(model: string, tokens: number): void
-  
-  // 费率计算
-  calculateCreditCost(model: string, tokens: number): number
-}
 
 ### 异步处理系统
 
@@ -806,10 +572,8 @@ interface User {
   id: string
   username: string
   email: string
-  passwordHash: string
   role: 'user' | 'admin'
   createdAt: Date
-  lastLoginAt: Date
   preferences: UserPreferences
 }
 
@@ -1685,7 +1449,7 @@ interface RevenueTrendPoint {
 **验证: 需求 16.3**
 
 ### 属性 14: 每日建议生成一致性
-*对于任何*用户的每日首次登录，系统应该基于用户当前能力数据生成个性化学习建议
+*对于任何*用户每日首次打开学习概览，系统应该基于用户当前能力数据生成个性化学习建议
 **验证: 需求 6.1, 6.2**
 
 ### 属性 15: 练习能力更新完整性
@@ -1712,24 +1476,20 @@ interface RevenueTrendPoint {
 *对于任何*成功完成的异步任务，系统应该能够可靠地返回正确的执行结果
 **验证: 异步处理需求**
 
-### 属性 21: API密钥配置生效性
-*对于任何*管理员保存的API配置更新，系统应该重新初始化OpenRouter服务并使新配置立即生效
-**验证: 需求 19.6**
+### 属性 21 · 配置持久性
 
-### 属性 22: API密钥测试准确性
-*对于任何*有效的OpenRouter API密钥，测试功能应该能够成功连接并返回可用模型列表
-**验证: 需求 19.3, 19.4**
+成功保存后的版本可被下一次 HTTP 或后台调用读取。读取和测试接口只返回允许公开的字段。过期版本的提交失败，保持已提交数据一致。
 
-### 属性 23: API使用统计完整性
-*对于任何*OpenRouter API调用，系统应该准确记录token消耗、模型使用和成本信息
-**验证: 需求 19.7**
+### 属性 22 · 回退顺序
+
+有功能队列时只遍历该队列。空功能队列使用默认队列。单次请求在首个成功结果处停止，连接测试只调用指定配置。
 
 ## 错误处理
 
 ### 网络和API错误
 - **连接超时处理** - 设置合理的超时时间，提供重试机制
 - **API限流处理** - 实现指数退避重试策略
-- **OpenRouter API错误** - 根据错误类型提供相应的用户提示
+- **AI 提供方错误** - 根据错误类型提供相应的用户提示
 - **支付网关错误** - 确保支付状态的一致性，避免重复扣费
 
 ### 异步处理错误
@@ -1853,21 +1613,20 @@ interface RevenueTrendPoint {
 - 测试任务优先级调度的正确性
 - 验证缓存机制对性能的提升效果
 
-**OpenRouter API管理属性测试：**
-- 生成各种格式的API密钥，验证格式验证的准确性
-- 测试API密钥更新后服务重新初始化的正确性
-- 验证API使用统计计算的准确性和完整性
-- 测试不同API密钥状态下的错误处理机制
+**AI 路由测试**
+
+- 验证多配置保存、版本冲突、密钥读取与保留、功能覆盖、默认继承及回退顺序。
+- 验证无鉴权访问、旧资料迁移及 CLI 不可用时的错误反馈。
 
 ### 集成测试策略
 
 **端到端用户流程测试：**
-- 完整的用户注册到学习的流程
+- 启动工作台到学习的流程
 - AI聊天到练习生成的完整链路
 - PK匹配到对战结束的全流程
 
 **第三方服务集成测试：**
-- OpenRouter API的各种响应场景
+- Responses API 与本机 CLI 的成功、失败和空响应场景
 - 支付网关的成功和失败场景
 - 邮件服务的发送和失败处理
 

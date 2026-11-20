@@ -2,13 +2,13 @@
 
 <div align="center">
 
-![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9%2B-blue?style=flat-square)
 ![React](https://img.shields.io/badge/React-18%2B-cyan?style=flat-square)
 ![Docker](https://img.shields.io/badge/Docker-Supported-blue?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-一个由 AI 驱动的语言学习平台，提供个性化学习体验和实时交互功能。
+一个由 AI 驱动的本地语言学习工作台。
 
 [快速开始](#-快速开始) • [项目结构](#-项目结构) • [开发指南](#-开发指南) • [API 文档](#-api-文档)
 
@@ -18,13 +18,13 @@
 
 ## 📖 项目简介
 
-Mnemos是一个全栈 AI 语言学习应用，集成了现代 Web 技术和人工智能能力。通过该平台，用户可以：
+Mnemos 启动后直接打开学习概览，以本地资料保存学习进度。
 
 - 🎯 **个性化学习** - 基于 AI 的智能学习路径推荐
-- 💬 **实时交互** - 通过 Socket.io 实现的实时聊天和反馈
+- 💬 **实时交互** - AI 对话、语法纠错和学习反馈
 - 📊 **进度追踪** - 详细的学习数据分析和能力评估
-- 🔐 **安全认证** - JWT 认证和多层安全防护
-- 💳 **支付管理** - 集成的支付和订阅系统
+- ⚙️ **AI 配置** - 自定义 Responses API、本机 Codex 或 Claude Code，支持按功能设置回退队列
+- 💳 **支付管理** - 充值、积分和交易记录
 - 🎓 **测试评估** - 多种题型的考试和评估系统
 
 ---
@@ -33,159 +33,89 @@ Mnemos是一个全栈 AI 语言学习应用，集成了现代 Web 技术和人�
 
 ### 前提条件
 
-在开始之前，确保你已安装：
+- Python 3.11 或 3.12
+- Node.js 和 npm，用于运行前端开发服务器和构建前端
+- Docker 和 Docker Compose，用于启动 PostgreSQL 与 Redis
+- Git 和 Make
 
-- **Node.js** >= 14 (推荐 18+)
-- **npm** >= 8
-- **Docker** 和 **Docker Compose**
-- **Git**
+### 初始化开发环境
 
-### 一键启动开发环境
-
-```bash
-# 1. 克隆项目
-git clone https://github.com/Thelia-Lzr/Language-Helper.git
-cd Language-Helper
-
-# 2. 完整的开发环境初始化
-make setup-dev
-
-# 3. 启动后端 (终端 1)
-make dev
-
-# 4. 启动前端 (终端 2)
-cd frontend && npm start
-```
-
-应用将在以下地址运行：
-
-- **前端**: http://localhost:3000
-- **后端 API**: http://localhost:8000
-- **PostgreSQL**: localhost:5432
-- **Redis**: localhost:6379
-
-### 简单步骤
-
-如果你更倾向于手动步骤：
+在仓库根目录执行下面的命令。使用 Python 3.11 时，把 `python3.12` 改为 `python3.11`。
 
 ```bash
-# 安装依赖
-make install
-
-# 启动数据库容器
-make docker-up
-
-# 等待 5 秒，然后运行迁移
-make db-migrate
-
-# 在不同的终端启动应用
-# 终端 1: 后端
-make dev
-
-# 终端 2: 前端
-cd frontend && npm start
+python3.12 -m venv python_backend/.venv
+python_backend/.venv/bin/python -m pip install -r python_backend/requirements.txt
+cp -n python_backend/.env.example python_backend/.env
+npm --prefix frontend ci
+docker compose up -d --wait
+make db-migrate PYTHON_BIN=.venv/bin/python
 ```
+
+### 启动应用
+
+```bash
+# 终端 1，从仓库根目录启动 FastAPI
+make dev PYTHON_BIN=.venv/bin/python
+
+# 终端 2，从仓库根目录启动 React
+HOST=127.0.0.1 npm --prefix frontend start
+```
+
+打开 `http://localhost:3000` 进入工作台。FastAPI 使用本机 8000 端口，PostgreSQL 和 Redis 分别映射到本机 5433 和 6380 端口。
+
+旧数据库升级时运行同一条迁移命令。数据库只有一份旧资料时会自动沿用，存在多份旧资料时会创建一份工作台资料。可在 `python_backend/.env` 设置 `WORKSPACE_USER_ID`，以 UUID 选用某份旧资料。
+
+### 配置 AI
+
+打开侧栏的「AI 配置」，新增配置并保存，再使用「测试连接」验证。
+
+- **Responses API** 填写完整地址（如 `https://api.openai.com/v1/responses`）、模型 ID 和可选 Bearer 密钥。API 密钥保存在本地 PostgreSQL，配置读取接口只返回是否已保存。
+- **本机 Codex / Claude Code** 需要对应的 `codex` 或 `claude` 命令出现在 FastAPI/Celery 进程的 PATH，并能通过该 CLI 自身的认证调用模型。模型 ID 可留空。CLI 运行位置是后端主机，具体命令选项见 [Codex CLI](https://developers.openai.com/codex/cli/reference/) 和 [Claude Code CLI](https://code.claude.com/docs/en/cli-reference)。
+- **功能路由** 在默认队列内添加主配置，再按顺序添加备用配置。每个功能可以另设队列，清空功能队列后继承默认。保存后，后续请求按新顺序执行。
 
 ---
 
 ## 📁 项目结构
 
-```
-Language-Helper/
-├── backend/                        # Node.js 后端应用
-│   ├── src/
-│   │   ├── server.ts              # 应用入口
-│   │   ├── config/                # 配置文件 (数据库、Redis、迁移等)
-│   │   ├── controllers/           # 请求处理器
-│   │   ├── services/              # 业务逻辑
-│   │   ├── models/                # 数据模型
-│   │   ├── routes/                # API 路由
-│   │   ├── middleware/            # Express 中间件
-│   │   ├── types/                 # TypeScript 类型定义
-│   │   └── utils/                 # 工具函数
-│   ├── database/
-│   │   ├── migrations/            # 数据库迁移文件
-│   │   └── seeds/                 # 示例数据
-│   ├── jest.config.js             # Jest 测试配置
-│   └── package.json
-│
-├── frontend/                       # React 前端应用
-│   ├── src/
-│   │   ├── App.tsx                # 应用根组件
-│   │   ├── components/            # React 组件
-│   │   ├── pages/                 # 页面组件
-│   │   ├── services/              # API 服务
-│   │   ├── store/                 # Redux 状态管理
-│   │   ├── types/                 # TypeScript 类型定义
-│   │   └── utils/                 # 工具函数
-│   ├── public/                    # 静态资源
-│   └── package.json
-│
-├── database/                      # 共享数据库配置
-│   ├── migrations/                # SQL 迁移脚本
-│   └── seeds/                     # 示例数据脚本
-│
-├── docker-compose.yml             # 生产环境 Docker 配置
-├── docker-compose.test.yml        # 测试环境 Docker 配置
-├── Makefile                       # 开发命令集
-└── README.md                      # 项目文档
+```text
+Mnemos/
+├── frontend/                    # TypeScript + React
+│   └── src/
+│       ├── App.tsx              # 页面路由
+│       ├── components/          # React 组件
+│       ├── pages/               # 页面组件
+│       ├── services/            # HTTP API 客户端
+│       └── store/               # Redux 状态
+├── python_backend/              # Python + FastAPI
+│   ├── app/
+│   │   ├── main.py              # FastAPI 入口
+│   │   ├── api/routes/          # HTTP 路由
+│   │   ├── core/                # 配置、数据库和 Redis
+│   │   ├── models/              # SQLAlchemy 模型
+│   │   ├── schemas/             # Pydantic 请求和响应模型
+│   │   ├── services/            # 业务逻辑和统一 AI 路由
+│   │   └── tasks/               # Celery 任务
+│   ├── alembic/                 # 当前数据库迁移
+│   └── tests/                   # pytest 测试
+├── database/                    # 历史 SQL 迁移和示例数据
+├── docker-compose.yml           # 本地 PostgreSQL 和 Redis
+├── docker-compose.test.yml      # 测试用 PostgreSQL 和 Redis
+└── Makefile                     # 本地开发命令
 ```
 
 ---
 
 ## 🛠️ 可用命令
 
-使用 `make help` 查看所有可用命令，或参考下表：
+从仓库根目录运行 `make help` 查看完整列表。按快速开始使用 `python_backend/.venv` 时，给后端相关的 Make 命令传入 `PYTHON_BIN=.venv/bin/python`。
 
-### 初始化和设置
-
-```bash
-make install              # 安装所有依赖
-make setup-dev           # 完整的开发环境初始化
-```
-
-### 开发
-
-```bash
-make dev                 # 启动后端开发环境 (热重载)
-make start               # 启动已构建的应用
-```
-
-### 构建
-
-```bash
-make build               # 构建后端和前端
-make build-backend       # 仅构建后端
-```
-
-### 测试
-
-```bash
-make test                # 运行所有测试
-make test-unit           # 运行单元测试
-make test-unit-watch     # 运行单元测试 (监视模式)
-make test-integration    # 运行集成测试
-make test-property       # 运行属性测试
-make test-coverage       # 生成测试覆盖率报告
-```
-
-### 代码质量
-
-```bash
-make lint                # 检查代码风格 (ESLint)
-make lint-fix            # 自动修复代码风格问题
-```
-
-### 数据库
-
-```bash
-make docker-up           # 启动数据库容器
-make docker-down         # 停止数据库容器
-make docker-clean        # 删除容器和卷数据
-make db-migrate          # 运行数据库迁移
-make db-rollback         # 回滚数据库
-make db-seed             # 填充示例数据
-```
+| 用途 | 命令 |
+| --- | --- |
+| 启动 FastAPI 并热重载 | `make dev PYTHON_BIN=.venv/bin/python` |
+| 启动 React 开发服务器 | `HOST=127.0.0.1 npm --prefix frontend start` |
+| 检查 Python 编译并构建前端 | `make build PYTHON_BIN=.venv/bin/python` |
+| 应用数据库迁移 | `make db-migrate PYTHON_BIN=.venv/bin/python` |
+| 停止 PostgreSQL 和 Redis | `make docker-down` |
 
 ---
 
@@ -193,22 +123,9 @@ make db-seed             # 填充示例数据
 
 ### 环境变量配置
 
-创建 `.env` 文件在项目根目录和 `backend/` 目录：
+后端读取 `python_backend/.env`，配置项以 [`.env.example`](python_backend/.env.example) 为准。常用项包括数据库的 `DB_*`、Redis 的 `REDIS_*` 和前端来源 `CORS_ORIGIN`。AI 配置在网页端保存。
 
-```bash
-# 项目根目录 .env
-POSTGRES_DB=ai_language_learning
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=password
-
-# backend/.env
-NODE_ENV=development
-PORT=8000
-DATABASE_URL=postgresql://postgres:password@localhost:5432/ai_language_learning
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=your_secret_key_here
-OPENROUTER_API_KEY=your_api_key_here
-```
+前端默认请求 `http://localhost:8000/api`。如需自定义地址，在 `frontend/.env` 中设置 `REACT_APP_API_URL`。
 
 ### 开发工作流程
 
@@ -219,14 +136,14 @@ OPENROUTER_API_KEY=your_api_key_here
 
 2. **运行开发环境**
    ```bash
-   make dev                    # 后端
-   cd frontend && npm start    # 前端
+   make dev PYTHON_BIN=.venv/bin/python  # 后端
+   HOST=127.0.0.1 npm --prefix frontend start           # 前端，在另一终端运行
    ```
 
 3. **编写代码和测试**
    ```bash
-   make test-unit             # 运行单元测试
-   make lint-fix              # 自动修复代码风格
+   make test-unit PYTHON_BIN=.venv/bin/python  # Python 后端单元测试
+   npm --prefix frontend run lint              # TypeScript 前端代码检查
    ```
 
 4. **提交和推送**
@@ -238,212 +155,76 @@ OPENROUTER_API_KEY=your_api_key_here
 
 ### 代码规范
 
-- **TypeScript** - 严格类型检查
-- **ESLint** - 代码风格检查
-- **Jest** - 单元测试框架
-- **Prettier** - 代码格式化 (通过 ESLint)
-
-运行以下命令确保代码符合规范：
-
-```bash
-make lint-fix              # 自动修复
-make test                  # 运行测试
-```
+前端使用 TypeScript 和 ESLint，后端使用 Ruff 和 Black。
 
 ### 数据库迁移
 
-添加新的迁移文件到 `database/migrations/` 目录：
-
-```bash
-# 创建新迁移文件
-# 格式: NNN_description.sql
-
-# 运行迁移
-make db-migrate
-
-# 回滚迁移
-make db-rollback
-```
+在 `python_backend/alembic/versions/` 中维护迁移，通过 `make db-migrate PYTHON_BIN=.venv/bin/python` 应用迁移。
 
 ---
 
 ## 🧪 测试
 
-项目包含完整的测试套件：
-
-### 单元测试
-
 ```bash
-make test-unit              # 运行一次
-make test-unit-watch        # 监视模式
+make test-unit PYTHON_BIN=.venv/bin/python
+make test-coverage PYTHON_BIN=.venv/bin/python
 ```
 
-### 集成测试
+Python 集成测试使用 `docker-compose.test.yml` 中的独立测试数据库。开发和测试的 Compose 配置使用相同的本机端口，请在启动测试容器前停止开发容器。
 
 ```bash
-make test-integration
+docker compose -f docker-compose.test.yml up -d --wait
+make test-integration PYTHON_BIN=.venv/bin/python
+docker compose -f docker-compose.test.yml down
 ```
-
-### 属性测试 (Property-based Testing)
-
-```bash
-make test-property
-```
-
-### 测试覆盖率
-
-```bash
-make test-coverage          # 生成报告
-open backend/coverage/index.html  # 查看报告
-```
-
-测试配置文件：
-- `jest.config.js` - 主测试配置
-- `jest.unit.config.js` - 单元测试配置
-- `jest.property.config.js` - 属性测试配置
 
 ---
 
-## 🐳 Docker 部署
+## 🐳 Docker 服务
 
-### 本地开发
-
-```bash
-# 启动开发环境容器
-make docker-up
-
-# 停止容器
-make docker-down
-
-# 清理容器和数据
-make docker-clean
-```
-
-### 生产部署
-
-```bash
-# 使用 docker-compose 部署
-docker-compose -f docker-compose.yml up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
-
-容器包括：
-- **PostgreSQL 15** - 数据库服务
-- **Redis 7** - 缓存和任务队列服务
+`docker-compose.yml` 提供 PostgreSQL 15 和 Redis 7。前端和 FastAPI 按[快速开始](#-快速开始)分别启动。可用 `docker compose ps` 查看状态，或用 `make docker-down` 停止容器。
 
 ---
 
 ## 🏗️ 项目架构
 
-### 后端架构
+```mermaid
+flowchart LR
+    Browser["浏览器"] --> Web["TypeScript · React"]
+    Web -->|"HTTP /api"| API["Python · FastAPI"]
+    API -->|"SQLAlchemy"| DB[("PostgreSQL")]
+    API --> Cache[("Redis")]
+    API -->|"聊天、出题、结果分析"| Model["Responses API · Codex · Claude Code"]
+    Worker["Celery worker"] -->|"任务队列与结果"| Cache
+    Worker --> Model
+```
 
-- **框架**: Express.js
-- **数据库**: PostgreSQL
-- **缓存**: Redis (使用 Bull 处理任务队列)
-- **认证**: JWT (JSON Web Tokens)
-- **实时通信**: Socket.io
-- **日志**: Winston
-- **安全**: Helmet, Rate Limiting, CORS
-
-### 前端架构
-
-- **框架**: React 18
-- **状态管理**: Redux Toolkit
-- **UI 库**: Material-UI (MUI)
-- **HTTP 客户端**: Axios
-- **路由**: React Router v6
-- **实时通信**: Socket.io-client
+- **前端**使用 React、React Router、Redux Toolkit 和 MUI。Axios 将请求发往 FastAPI。
+- **后端**在 `python_backend/app/main.py` 注册路由。Pydantic 校验请求和响应，业务服务通过 SQLAlchemy 读取或写入 PostgreSQL，数据库结构由 Alembic 管理。
+- **AI 调用**按功能队列路由。普通聊天和练习生成的 HTTP 请求会等待模型返回，Celery 后台任务使用相同的路由配置。
 
 ---
 
 ## 📡 API 文档
 
-API 运行在 `http://localhost:8000`
+FastAPI 启动后，在本机 8000 端口打开 `/docs` 获取 Swagger UI，或访问 `/openapi.json` 获取接口定义。业务接口以 `/api` 为前缀，健康检查为 `GET /health`。
 
-主要端点：
-
-### 认证
-- `POST /auth/register` - 用户注册
-- `POST /auth/login` - 用户登录
-- `POST /auth/refresh` - 刷新令牌
-
-### 用户
-- `GET /users/:id` - 获取用户信息
-- `PUT /users/:id` - 更新用户信息
-
-### 聊天
-- `GET /chat/messages` - 获取聊天历史
-- `POST /chat/messages` - 发送消息
-
-### 练习
-- `GET /practice/exercises` - 获取练习列表
-- `POST /practice/submit` - 提交练习答案
-
-### 词汇
-- `GET /vocabulary/words` - 获取词汇列表
-
-更详细的 API 文档请查看代码中的注释和路由定义。
+| 模块 | 示例 |
+| --- | --- |
+| 工作台资料 | `GET /api/users/profile` |
+| AI 配置 | `GET /api/ai-settings`、`PUT /api/ai-settings` |
+| 对话 | `POST /api/chat/message` |
+| 练习生成 | `POST /api/practice/generate-group` |
+| 练习提交 | `POST /api/practice/group/{group_id}/submit` |
+| 词汇 | `GET /api/vocabulary/words` |
 
 ---
 
 ## 🔧 故障排除
 
-### 数据库连接失败
-
-```bash
-# 检查 Docker 容器是否运行
-docker ps
-
-# 检查环境变量
-cat .env
-
-# 重启容器
-make docker-clean && make docker-up
-```
-
-### 端口被占用
-
-```bash
-# 查找占用端口的进程
-lsof -i :8000     # 后端
-lsof -i :3000     # 前端
-lsof -i :5432     # PostgreSQL
-lsof -i :6379     # Redis
-
-# 停止占用的进程
-kill -9 <PID>
-```
-
-### 构建失败
-
-```bash
-# 清理所有依赖
-make clean
-
-# 重新安装
-make install
-
-# 重新构建
-make build
-```
-
-### 测试失败
-
-```bash
-# 确保测试数据库容器运行
-docker-compose -f docker-compose.test.yml up -d
-
-# 等待数据库启动
-sleep 5
-
-# 运行测试
-make test
-```
+- 数据库连接失败时，使用 `docker compose ps` 查看容器状态，并检查 `python_backend/.env` 中的 `DB_*` 配置。
+- 前端无法访问 API 时，确认 FastAPI 已启动，并检查 `REACT_APP_API_URL` 和后端的 `CORS_ORIGIN`。
+- 模型请求失败时，打开「AI 配置」，检查功能队列及默认队列，逐个测试队列内的配置。
 
 ---
 
@@ -458,8 +239,8 @@ make test
 5. 开启 Pull Request
 
 请确保你的代码：
-- ✅ 通过所有测试 (`make test`)
-- ✅ 通过 linting 检查 (`make lint-fix`)
+- ✅ 通过相关测试
+- ✅ 通过代码风格检查
 - ✅ 包含必要的测试
 - ✅ 更新相关文档
 

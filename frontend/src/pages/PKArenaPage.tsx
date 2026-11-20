@@ -11,13 +11,11 @@ import {
     Typography,
 } from '@mui/material';
 import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
 import PKBattleHistory from '../components/PK/PKBattleHistory';
 import PKBattleInterface from '../components/PK/PKBattleInterface';
 import PKLeaderboard from '../components/PK/PKLeaderboard';
 import PKMatchingInterface from '../components/PK/PKMatchingInterface';
 import api from '../services/api';
-import { RootState } from '../store/store';
 
 const PKArenaPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -25,7 +23,6 @@ const PKArenaPage: React.FC = () => {
   const [currentBattleId, setCurrentBattleId] = useState<string | null>(null);
   const [userCredit, setUserCredit] = useState<number>(0);
 
-  const { user } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     // 获取用户Credit余额

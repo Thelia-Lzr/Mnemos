@@ -16,61 +16,6 @@ export class SecurityUtils {
     return emailRegex.test(email);
   }
 
-  // Validate password strength
-  static validatePassword(password: string): { 
-    valid: boolean; 
-    score: number; 
-    errors: string[] 
-  } {
-    const errors: string[] = [];
-    let score = 0;
-
-    if (password.length < 8) {
-      errors.push('密码至少需要8个字符');
-    } else {
-      score += 1;
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      errors.push('密码需要包含至少一个大写字母');
-    } else {
-      score += 1;
-    }
-
-    if (!/[a-z]/.test(password)) {
-      errors.push('密码需要包含至少一个小写字母');
-    } else {
-      score += 1;
-    }
-
-    if (!/\d/.test(password)) {
-      errors.push('密码需要包含至少一个数字');
-    } else {
-      score += 1;
-    }
-
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      errors.push('密码需要包含至少一个特殊字符');
-    } else {
-      score += 1;
-    }
-
-    // Additional checks for stronger passwords
-    if (password.length >= 12) {
-      score += 1;
-    }
-
-    if (/[!@#$%^&*(),.?":{}|<>].*[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      score += 1; // Multiple special characters
-    }
-
-    return {
-      valid: errors.length === 0,
-      score: Math.min(score, 5), // Max score of 5
-      errors
-    };
-  }
-
   // Generate secure random string
   static generateSecureToken(length: number = 32): string {
     const array = new Uint8Array(length);
@@ -89,23 +34,6 @@ export class SecurityUtils {
     const middle = '*'.repeat(data.length - visibleChars * 2);
     
     return start + middle + end;
-  }
-
-  // Check for common password patterns
-  static hasCommonPatterns(password: string): boolean {
-    const commonPatterns = [
-      /123456/,
-      /password/i,
-      /qwerty/i,
-      /abc123/i,
-      /admin/i,
-      /letmein/i,
-      /welcome/i,
-      /monkey/i,
-      /dragon/i
-    ];
-
-    return commonPatterns.some(pattern => pattern.test(password));
   }
 
   // Validate username
@@ -170,20 +98,8 @@ export class SecurityUtils {
     }
   }
 
-  // Clear all sensitive data from storage
-  static clearSensitiveData(): void {
-    const sensitiveKeys = ['token', 'refreshToken', 'userCredentials', 'authData'];
-    
-    sensitiveKeys.forEach(key => {
-      this.removeSecureItem(key);
-    });
-
-    // Clear session storage as well
-    try {
-      sessionStorage.clear();
-    } catch (error) {
-      console.error('Failed to clear sessionStorage:', error);
-    }
+  static clearLegacySession(): void {
+    ['token', 'refreshToken', 'userCredentials', 'authData'].forEach((key) => this.removeSecureItem(key));
   }
 
   // Check if running in secure context (HTTPS)

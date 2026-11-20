@@ -7,7 +7,8 @@ from sqlalchemy import select, func
 from typing import Optional, List, Dict, Any
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.services.ai_service import AIUnavailable
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.vocabulary import (
     VocabularyWordCreate,
     VocabularyWordUpdate,
@@ -35,7 +36,7 @@ async def get_vocabulary_words(
     mastery_level: Optional[MasteryLevel] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取词汇列表"""
     vocabulary_service = get_vocabulary_service(db)
@@ -92,7 +93,7 @@ async def add_word(
     *,
     db: AsyncSession = Depends(get_db),
     request: VocabularyWordCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """添加单个单词"""
     vocabulary_service = get_vocabulary_service(db)
@@ -133,7 +134,7 @@ async def add_words_from_text(
     db: AsyncSession = Depends(get_db),
     text: str = Body(..., embed=True),
     language: str = Body(..., embed=True),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """从文本中添加单词"""
     vocabulary_service = get_vocabulary_service(db)
@@ -174,6 +175,8 @@ async def add_words_from_text(
             ],
             "message": f"Added {len(words)} new words to vocabulary",
         }
+    except AIUnavailable:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -183,7 +186,7 @@ async def remove_word(
     *,
     word_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """删除单词"""
     vocabulary_service = get_vocabulary_service(db)
@@ -209,7 +212,7 @@ async def update_mastery(
     mastery_level: Optional[MasteryLevel] = Body(None),
     mastery_score: Optional[int] = Body(None, ge=0, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """更新单词掌握程度"""
     vocabulary_service = get_vocabulary_service(db)
@@ -247,7 +250,7 @@ async def get_mastery_stats(
     *,
     db: AsyncSession = Depends(get_db),
     language: str = Query(..., pattern="^(en|ja|fr)$"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取掌握度统计"""
     vocabulary_service = get_vocabulary_service(db)
@@ -276,7 +279,7 @@ async def get_words_needing_review(
     db: AsyncSession = Depends(get_db),
     language: str = Query(..., pattern="^(en|ja|fr)$"),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取需要复习的单词"""
     vocabulary_service = get_vocabulary_service(db)
@@ -318,7 +321,7 @@ async def apply_daily_decay(
     *,
     db: AsyncSession = Depends(get_db),
     language: str = Body(..., embed=True, pattern="^(en|ja|fr)$"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """应用每日遗忘衰减"""
     vocabulary_service = get_vocabulary_service(db)
@@ -340,7 +343,7 @@ async def get_scheduled_reviews(
     db: AsyncSession = Depends(get_db),
     language: str = Query(..., pattern="^(en|ja|fr)$"),
     limit: int = Query(50, ge=1, le=200),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取 scheduled reviews"""
     # TODO: 实现 scheduled reviews 功能
@@ -354,7 +357,7 @@ async def get_scheduled_reviews(
 async def get_review_reminders(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取复习提醒"""
     # TODO: 实现复习提醒功能
@@ -369,7 +372,7 @@ async def get_forgetting_curve_metrics(
     *,
     db: AsyncSession = Depends(get_db),
     language: str = Query(..., pattern="^(en|ja|fr)$"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取遗忘曲线指标"""
     # TODO: 实现遗忘曲线指标计算
@@ -386,7 +389,7 @@ async def optimize_review_schedule(
     *,
     db: AsyncSession = Depends(get_db),
     language: str = Body(..., embed=True, pattern="^(en|ja|fr)$"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """优化复习计划"""
     # TODO: 实现复习计划优化
@@ -401,7 +404,7 @@ async def generate_vocabulary_practice(
     *,
     db: AsyncSession = Depends(get_db),
     request: VocabularyPracticeRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """生成词汇练习"""
     vocabulary_service = get_vocabulary_service(db)
@@ -424,7 +427,7 @@ async def submit_vocabulary_practice(
     *,
     db: AsyncSession = Depends(get_db),
     request: VocabularySubmitPracticeRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """提交词汇练习结果"""
     vocabulary_service = get_vocabulary_service(db)
@@ -452,7 +455,7 @@ async def get_learning_efficiency_metrics(
     db: AsyncSession = Depends(get_db),
     language: str = Query(..., pattern="^(en|ja|fr)$"),
     days: int = Query(30, ge=1, le=365),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取学习效率指标"""
     # TODO: 实现学习效率指标计算

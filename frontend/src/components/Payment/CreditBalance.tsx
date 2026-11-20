@@ -87,7 +87,7 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
           </Typography>
           
           <Typography variant="body2" sx={{ opacity: 0.8 }}>
-            可用于AI对话、练习生成、PK对战等功能
+            可用于 PK 对战等积分功能
           </Typography>
         </Box>
 

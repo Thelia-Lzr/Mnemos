@@ -45,15 +45,6 @@ const { chromium } = require('playwright');
     });
   };
 
-  await page.goto('http://localhost:3000/auth', { waitUntil: 'networkidle' });
-  await page.evaluate(() => localStorage.clear());
-  await page.reload({ waitUntil: 'networkidle' });
-
-  await page.fill('input[name="email"]', 'thelia@example.com');
-  await page.fill('input[name="password"]', '123456');
-  await page.click('button[type="submit"]');
-  await page.waitForTimeout(1500);
-
   const paths = [
     '/dashboard',
     '/profile',
@@ -64,6 +55,7 @@ const { chromium } = require('playwright');
     '/recharge',
     '/pk',
     '/admin',
+    '/ai-settings',
   ];
 
   for (const path of paths) {

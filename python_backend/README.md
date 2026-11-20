@@ -1,28 +1,31 @@
 # Mnemos Python Backend
 
-Mnemos 是一个全栈 AI 驱动的语言学习应用，这是 Python 版本的后端实现。
+这里是 Mnemos 的 FastAPI 后端，向 TypeScript + React 前端提供 HTTP API。
 
 ## 技术栈
 
 - **Web 框架**: FastAPI
 - **数据库**: PostgreSQL + SQLAlchemy (async)
 - **缓存**: Redis
-- **认证**: JWT (python-jose)
 - **任务队列**: Celery
-- **实时通信**: python-socketio
-- **AI 集成**: OpenRouter API (httpx)
+- **AI 集成**: Responses API、Codex 或 Claude Code
 
 ## 快速开始
 
 ### 1. 环境要求
 
-- Python 3.11+
+- Python 3.11 或 3.12
 - PostgreSQL 15+
 - Redis 7+
 
 ### 2. 安装依赖
 
+从仓库根目录进入 `python_backend/`，在该目录完成以下步骤。使用 Python 3.11 时，把 `python3.12` 改为 `python3.11`。
+
 ```bash
+cd python_backend
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -42,23 +45,21 @@ cp .env.example .env
 ### 4. 初始化数据库
 
 ```bash
-# 从原 Node.js 后端迁移数据库
-# 运行 SQL 迁移文件
-psql -h localhost -p 5433 -U postgres -d ai_language_learning -f ../backend/database/migrations/001_initial_schema.sql
-# ... 运行其他迁移文件
+docker compose -f ../docker-compose.yml up -d --wait
+alembic upgrade head
 ```
 
 ### 5. 启动服务
 
 ```bash
 # 开发模式
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 # 生产模式
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
 ```
 
-### 6. 启动 Celery Worker
+### 6. 启动 Celery Worker（按需）
 
 ```bash
 celery -A app.tasks.celery_app worker --loglevel=info
@@ -80,7 +81,7 @@ python_backend/
 │   ├── api/
 │   │   ├── routes/             # API 路由
 │   │   │   ├── __init__.py
-│   │   │   ├── auth.py         # 认证路由
+│   │   │   ├── ai_settings.py  # AI 配置及连接测试
 │   │   │   ├── users.py        # 用户路由
 │   │   │   ├── chat.py         # 聊天路由
 │   │   │   ├── practice.py     # 练习路由
@@ -108,7 +109,6 @@ python_backend/
 │   │   └── assessment.py
 │   ├── schemas/                # Pydantic 模式
 │   ├── services/               # 业务逻辑
-│   │   ├── auth_service.py
 │   │   ├── user_service.py
 │   │   ├── chat_service.py
 │   │   ├── practice_service.py
@@ -116,7 +116,7 @@ python_backend/
 │   │   ├── pk_battle_service.py
 │   │   ├── payment_service.py
 │   │   ├── daily_recommendation_service.py
-│   │   └── openrouter_service.py
+│   │   └── ai_service.py
 │   ├── tasks/                  # Celery 任务
 │   │   ├── celery_app.py
 │   │   ├── chat_tasks.py
@@ -135,13 +135,13 @@ python_backend/
 
 ## API 端点
 
-### 认证
-- `POST /api/auth/register` - 用户注册
-- `POST /api/auth/login` - 用户登录
-- `POST /api/auth/refresh` - 刷新令牌
-- `POST /api/auth/logout` - 用户登出
-- `GET /api/auth/profile` - 获取用户资料
-- `PUT /api/auth/change-password` - 修改密码
+### 工作台与 AI
+
+- `GET /api/users/profile` 读取本地工作台资料。
+- `GET /api/ai-settings` 和 `PUT /api/ai-settings` 读取和保存配置与队列。
+- `POST /api/ai-settings/profiles/{id}/test` 测试单个已保存配置。
+
+配置步骤见[项目 README](../README.md#配置-ai)。
 
 ### 用户
 - `GET /api/users/profile` - 获取个人资料
@@ -283,14 +283,6 @@ pytest --cov=app --cov-report=html
 2. **Redis 连接**: 确保 Redis 运行在端口 6380
 3. **环境变量**: 所有敏感配置都应通过环境变量设置
 4. **CORS**: 确保 `CORS_ORIGIN` 与前端地址匹配
-
-## 与原 Node.js 后端的差异
-
-- 使用 FastAPI 替代 Express
-- 使用 SQLAlchemy ORM 替代原生 SQL
-- 使用 Celery 替代 Bull 任务队列
-- 使用 python-socketio 保持 WebSocket 兼容
-- API 响应格式保持一致，前端无需修改
 
 ## License
 

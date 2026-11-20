@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 import psutil
 import time
 
-from app.api.deps import get_db, get_current_user, require_admin
+from app.api.deps import get_db
 from app.core.database import health_check as db_health
 from app.core.redis import redis_health_check
 from app.models.user import User
@@ -180,7 +180,6 @@ def _build_alerts(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
 async def health_endpoint(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """健康检查"""
     snapshot = await _build_monitoring_snapshot(db)
@@ -191,10 +190,7 @@ async def health_endpoint(
 
 
 @router.get("/metrics")
-async def get_metrics(
-    *,
-    current_user: User = Depends(require_admin),
-):
+async def get_metrics():
     """获取系统指标"""
     # CPU 使用率
     cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -233,7 +229,6 @@ async def get_alerts(
     *,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: User = Depends(require_admin),
 ):
     """获取警报列表"""
     snapshot = await _build_monitoring_snapshot(db)
@@ -253,7 +248,6 @@ async def get_alerts(
 async def resolve_alert(
     *,
     alert_id: str,
-    current_user: User = Depends(require_admin),
 ):
     """解决警报"""
     _RESOLVED_ALERT_IDS.add(alert_id)
@@ -267,7 +261,6 @@ async def resolve_alert(
 async def get_database_stats(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """获取数据库统计"""
     # 用户总数
@@ -287,10 +280,7 @@ async def get_database_stats(
 
 
 @router.get("/cache/stats")
-async def get_cache_stats(
-    *,
-    current_user: User = Depends(require_admin),
-):
+async def get_cache_stats():
     """获取缓存统计"""
     # TODO: 实现 Redis 缓存统计
     return {

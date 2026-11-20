@@ -8,10 +8,11 @@ from datetime import datetime
 import uuid
 import json
 
+from app.schemas.ai import AIFeature
+from app.services.ai_service import call_ai
 from app.models.practice import PracticeGroup, Question, PracticeResult, PracticeAIAnalysis
 from app.models.user import User, UserCapability
 from app.models.vocabulary import VocabularyWord
-from app.services.openrouter_service import OpenRouterService, get_openrouter_service, TaskType
 
 
 class PracticeService:
@@ -19,7 +20,6 @@ class PracticeService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.openrouter = get_openrouter_service()
 
     async def generate_practice_group(
         self,
@@ -52,7 +52,6 @@ class PracticeService:
         capability = await self._get_user_capability(user_id, language)
 
         # 构建 AI 提示词
-        model = self.openrouter.select_model(TaskType.EXERCISE_GENERATION)
 
         prompt = self._build_practice_generation_prompt(
             language=language,
@@ -63,10 +62,9 @@ class PracticeService:
         )
 
         # 调用 AI 生成练习
-        response = await self.openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            self.db, AIFeature.EXERCISE_GENERATION,
             prompt=prompt,
-            user_id=user_id,
         )
 
         # 解析 AI 响应
@@ -107,7 +105,7 @@ class PracticeService:
             self.db.add(question)
 
         await self.db.commit()
-        await self.db.refresh(practice_group)
+        await self.db.refresh(practice_group, ["questions"])
 
         return practice_group
 
@@ -229,7 +227,6 @@ class PracticeService:
             raise ValueError("Practice result not found")
 
         # 构建分析提示词
-        model = self.openrouter.select_model(TaskType.EXERCISE_GENERATION)
 
         prompt = f"""分析用户的练习结果：
 
@@ -259,10 +256,9 @@ class PracticeService:
 """
 
         # 调用 AI
-        response = await self.openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            self.db, AIFeature.PRACTICE_ANALYSIS,
             prompt=prompt,
-            user_id=user_id,
         )
 
         # 解析 AI 响应

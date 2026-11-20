@@ -19,7 +19,6 @@ import {
   Tab,
 } from '@mui/material';
 import { EmojiEvents, TrendingUp, Person } from '@mui/icons-material';
-import SecurityUtils from '../../utils/security';
 
 interface LeaderboardEntry {
   userId: string;
@@ -51,9 +50,7 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/pk/leaderboard?language=${language}&limit=50`, {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
+
       });
 
       if (response.ok) {
@@ -72,9 +69,7 @@ const PKLeaderboard: React.FC<PKLeaderboardProps> = ({ language }) => {
   const fetchUserStats = async () => {
     try {
       const response = await fetch(`/api/pk/stats?language=${language}`, {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
+
       });
 
       if (response.ok) {

@@ -33,4 +33,4 @@ echo   PostgreSQL: localhost:5433
 echo   Redis: localhost:6380
 echo.
 echo 现在可以运行测试了:
-echo   cd backend ^&^& npm run test:property
+echo   cd python_backend ^&^& .venv\Scripts\python.exe -m pytest tests/integration/

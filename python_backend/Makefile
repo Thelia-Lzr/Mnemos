@@ -30,11 +30,11 @@ install-dev: check-python ## 安装开发依赖
 
 dev: check-python ## 启动开发服务器
 	@echo "启动开发服务器..."
-	$(PYTHON) -m uvicorn app.main:app --reload --host 0.0.0.0 --port $(PORT)
+	$(PYTHON) -m uvicorn app.main:app --reload --host 127.0.0.1 --port $(PORT)
 
 run: check-python ## 启动生产服务器
 	@echo "启动生产服务器..."
-	$(PYTHON) -m uvicorn app.main:app --host 0.0.0.0 --port $(PORT) --workers 4
+	$(PYTHON) -m uvicorn app.main:app --host 127.0.0.1 --port $(PORT) --workers 4
 
 worker: check-python ## 启动 Celery Worker
 	@echo "启动 Celery Worker..."

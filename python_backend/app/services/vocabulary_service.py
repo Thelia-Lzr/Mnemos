@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 import uuid
 import json
 
+from app.schemas.ai import AIFeature
+from app.services.ai_service import call_ai
 from app.models.vocabulary import VocabularyWord, MasteryLevel
 from app.models.user import User
-from app.services.openrouter_service import OpenRouterService, get_openrouter_service, TaskType
 
 
 class VocabularyService:
@@ -18,7 +19,6 @@ class VocabularyService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.openrouter = get_openrouter_service()
 
     async def get_words(
         self,
@@ -72,7 +72,6 @@ class VocabularyService:
             添加的单词列表
         """
         # 使用 AI 提取单词
-        model = self.openrouter.select_model(TaskType.VOCABULARY_EXTRACTION)
 
         prompt = f"""从以下{language}文本中提取重要单词和短语：
 
@@ -91,10 +90,9 @@ class VocabularyService:
 ]
 """
 
-        response = await self.openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            self.db, AIFeature.VOCABULARY_EXTRACTION,
             prompt=prompt,
-            user_id=user_id,
         )
 
         # 解析 AI 响应
@@ -418,7 +416,6 @@ class VocabularyService:
             return {"questions": []}
 
         # 使用 AI 生成练习
-        model = self.openrouter.select_model(TaskType.EXERCISE_GENERATION)
 
         words_info = "\n".join([
             f"- {w.word}: {w.definition} ({w.part_of_speech})"
@@ -449,10 +446,9 @@ class VocabularyService:
 }}
 """
 
-        response = await self.openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            self.db, AIFeature.VOCABULARY_PRACTICE,
             prompt=prompt,
-            user_id=user_id,
         )
 
         try:

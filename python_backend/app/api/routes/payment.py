@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import datetime
 import uuid
 
-from app.api.deps import get_db, get_current_user, require_admin
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.payment import (
     PaymentOrderCreate,
     PaymentOrderResponse,
@@ -97,7 +97,7 @@ async def create_order(
     *,
     request: PaymentOrderCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """创建支付订单"""
     payment_service = get_payment_service(db)
@@ -134,7 +134,7 @@ async def get_order(
     *,
     order_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取订单详情"""
     payment_service = get_payment_service(db)
@@ -173,7 +173,7 @@ async def get_order_status(
     *,
     order_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取订单状态"""
     payment_service = get_payment_service(db)
@@ -198,7 +198,7 @@ async def confirm_payment(
     order_id: str,
     payment_method: PaymentMethod = Body(..., embed=True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """确认支付"""
     payment_service = get_payment_service(db)
@@ -239,7 +239,7 @@ async def cancel_order(
     *,
     order_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """取消订单"""
     payment_service = get_payment_service(db)
@@ -268,7 +268,7 @@ async def get_transactions(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取交易历史"""
     payment_service = get_payment_service(db)
@@ -309,7 +309,7 @@ async def get_transactions(
 async def get_credits(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取积分余额"""
     payment_service = get_payment_service(db)

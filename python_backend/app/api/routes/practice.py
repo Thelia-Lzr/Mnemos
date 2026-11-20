@@ -8,7 +8,9 @@ from typing import Optional, List, Dict, Any
 import uuid
 import sqlalchemy
 
-from app.api.deps import get_db, get_current_user
+from app.schemas.ai import AIFeature
+from app.services.ai_service import AIUnavailable, call_ai
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.practice import (
     PracticeGroupCreate,
     PracticeGroupResponse,
@@ -21,7 +23,7 @@ from app.schemas.practice import (
     PracticeFollowupRequest,
 )
 from app.services.practice_service import PracticeService, get_practice_service
-from app.models.practice import PracticeGroup, PracticeResult, PracticeAIAnalysis
+from app.models.practice import PracticeGroup, PracticeResult, PracticeAIAnalysis, Question
 from app.models.user import User
 
 router = APIRouter(prefix="/api/practice", tags=["练习"])
@@ -32,7 +34,7 @@ async def generate_practice_group(
     *,
     db: AsyncSession = Depends(get_db),
     request: PracticeGroupCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """生成练习组"""
     practice_service = get_practice_service(db)
@@ -75,6 +77,8 @@ async def generate_practice_group(
                 for q in practice_group.questions
             ] if practice_group.questions else [],
         )
+    except AIUnavailable:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -85,7 +89,7 @@ async def get_practice_groups(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取练习组列表"""
     from sqlalchemy import select
@@ -137,7 +141,7 @@ async def get_practice_group(
     *,
     group_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取练习组详情"""
     from sqlalchemy import select
@@ -197,7 +201,7 @@ async def submit_practice(
     group_id: str,
     request: PracticeSubmitRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """提交练习答案"""
     practice_service = get_practice_service(db)
@@ -234,7 +238,7 @@ async def get_practice_history(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取练习历史"""
     user_uuid = uuid.UUID(str(current_user.id))
@@ -318,7 +322,7 @@ async def batch_delete_practice_history(
     *,
     request: dict = Body(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """批量删除练习历史（仅删除结果与分析，保留练习组）"""
     practice_group_ids = request.get("practiceGroupIds")
@@ -360,7 +364,7 @@ async def analyze_practice(
     *,
     group_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """生成练习分析（这个端点可能需要调整，因为分析是基于 result 而不是 group）"""
     # TODO: 实现基于练习组的分析
@@ -377,7 +381,7 @@ async def analyze_practice_result(
     *,
     result_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """生成练习结果分析"""
     practice_service = get_practice_service(db)
@@ -401,6 +405,8 @@ async def analyze_practice_result(
             overallProgressDirection=analysis.overall_progress_direction,
             progressMessage=analysis.progress_message,
         )
+    except AIUnavailable:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -410,7 +416,7 @@ async def delete_practice_group(
     *,
     group_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """删除练习组"""
     practice_service = get_practice_service(db)
@@ -431,37 +437,35 @@ async def ask_followup(
     *,
     db: AsyncSession = Depends(get_db),
     request: PracticeFollowupRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """练习追问"""
-    from app.services.openrouter_service import get_openrouter_service, TaskType
-    from app.services.practice_service import PracticeService, get_practice_service
 
-    practice_service = get_practice_service(db)
-    openrouter = get_openrouter_service()
-
-    # 获取练习题目信息
-    if request.practiceGroupId:
-        practice_group = await practice_service.db.execute(
-            sqlalchemy.select(PracticeGroup).where(
-                PracticeGroup.id == uuid.UUID(request.practiceGroupId),
-                PracticeGroup.user_id == uuid.UUID(str(current_user.id)),
+    group = question = None
+    if request.questionId:
+        pair = (await db.execute(
+            select(Question, PracticeGroup)
+            .join(PracticeGroup, Question.practice_group_id == PracticeGroup.id)
+            .where(
+                Question.id == uuid.UUID(request.questionId),
+                PracticeGroup.user_id == current_user.id,
             )
-        )
-        group = practice_group.scalar_one_or_none()
-    else:
-        group = None
+        )).one_or_none()
+        if pair:
+            question, group = pair
+    elif request.practiceGroupId:
+        group = await db.scalar(select(PracticeGroup).where(
+            PracticeGroup.id == uuid.UUID(request.practiceGroupId),
+            PracticeGroup.user_id == current_user.id,
+        ))
 
-    # 构建上下文
-    context = f"""用户正在学习{group.language if group else '英语'}。
-用户的问题：{request.question}
+    context = f"""用户正在学习{group.language if group else request.language or '英语'}。
+用户的问题：{request.query}
 
 {f'练习主题：{group.title}' if group else ''}
+{f'题目：{question.content}' if question else ''}
 {f'用户之前的答案：{request.userAnswer}' if request.userAnswer else ''}
 """
-
-    # 使用 AI 生成解释
-    model = openrouter.select_model(TaskType.CONVERSATION)
 
     prompt = f"""作为一个专业的语言学习助手，请回答用户的问题。
 
@@ -475,10 +479,9 @@ async def ask_followup(
 用中文回答，除非用户明确要求使用其他语言。"""
 
     try:
-        response = await openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            db, AIFeature.PRACTICE_FOLLOWUP,
             prompt=prompt,
-            user_id=str(current_user.id),
         )
 
         return {
@@ -489,5 +492,7 @@ async def ask_followup(
                 "processingTime": response["processing_time"],
             },
         }
+    except AIUnavailable:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

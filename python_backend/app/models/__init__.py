@@ -3,6 +3,7 @@ SQLAlchemy 模型定义
 """
 # 导入所有模型以确保它们被注册到 Base
 from app.models.base import Base
+from app.models.workspace import WorkspaceSettings
 from app.models.user import User, UserPreferences, UserCapability, UserLearningLanguage
 from app.models.chat_message import ChatMessage
 from app.models.practice import PracticeGroup, Question, PracticeResult, PracticeAIAnalysis
@@ -19,6 +20,7 @@ from app.models.recommendation import DailyLearningRecommendation
 
 __all__ = [
     "Base",
+    "WorkspaceSettings",
     "User",
     "UserPreferences",
     "UserCapability",

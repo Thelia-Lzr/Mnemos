@@ -1,8 +1,5 @@
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -18,4 +15,32 @@ code {
 
 html, body, #root {
   height: 100%;
+}
+/* Geometric motif shared by the sign-in poster and learning dashboard. */
+.mnemos-orbit {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 1;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: #d9ccff;
+}
+
+.mnemos-orbit::before,
+.mnemos-orbit::after {
+  position: absolute;
+  content: '';
+}
+
+.mnemos-orbit::before {
+  inset: 12%;
+  border-radius: 50%;
+  background: repeating-linear-gradient(-45deg, currentColor 0 2px, transparent 2px 9px);
+}
+
+.mnemos-orbit::after {
+  inset: 23%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d9ccff 50%, #8a6cff 50%);
+  transform: translate(21%, -12%);
 }

@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from typing import List, Optional
 import uuid
 
-from app.api.deps import get_db, get_current_user, require_admin
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.user import (
     UserResponse,
     UserUpdate,
@@ -28,30 +28,20 @@ from app.core.database import AsyncSession
 router = APIRouter(prefix="/api/users", tags=["用户"])
 
 
-# @router.get("/profile", response_model="UserProfileResponse")
-# async def get_profile(
-#     current_user: User = Depends(get_current_user),
-#     db: AsyncSession = Depends(get_db),
-# ) -> UserProfileResponse:
-#     """获取用户完整资料"""
-#     # 获取积分
-#     credits_result = await db.execute(
-#         select(UserCredit).where(UserCredit.user_id == current_user.id)
-#     )
-#     credits = credits_result.scalar_one_or_none()
-#
-#     return UserProfileResponse(
-#         id=str(current_user.id),
-#         username=current_user.username,
-#         email=current_user.email,
-#         role=current_user.role,
-#         created_at=current_user.created_at,
-#         last_login_at=current_user.last_login_at,
-#         preferences=None,  # 需要时加载
-#         capabilities=[],  # 需要时加载
-#         learning_languages=[],  # 需要时加载
-#         credits=credits.balance if credits else 0,
-#     )
+@router.get("/profile", response_model=UserResponse)
+async def get_profile(current_user: User = Depends(get_workspace_user)) -> UserResponse:
+    return serialize_profile(current_user)
+
+
+def serialize_profile(user: User) -> UserResponse:
+    return UserResponse(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
+    )
 
 
 @router.put("/profile", response_model=UserResponse)
@@ -59,7 +49,7 @@ async def update_profile(
     *,
     db: AsyncSession = Depends(get_db),
     user_in: UserUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ) -> UserResponse:
     """更新用户资料"""
     if user_in.username:
@@ -95,14 +85,7 @@ async def update_profile(
     await db.commit()
     await db.refresh(current_user)
 
-    return UserResponse(
-        id=str(current_user.id),
-        username=current_user.username,
-        email=current_user.email,
-        role=current_user.role,
-        created_at=current_user.created_at,
-        last_login_at=current_user.last_login_at,
-    )
+    return serialize_profile(current_user)
 
 
 # @router.put("/preferences", response_model="UserPreferencesResponse")
@@ -110,7 +93,7 @@ async def update_profile(
 #     *,
 #     db: AsyncSession = Depends(get_db),
 #     preferences_in: UserPreferencesUpdate,
-#     current_user: User = Depends(get_current_user),
+#     current_user: User = Depends(get_workspace_user),
 # ) -> UserPreferencesResponse:
 #     """更新用户偏好"""
 #     # 获取或创建偏好设置
@@ -146,7 +129,7 @@ async def update_profile(
 
 @router.get("/learning-status")
 async def get_learning_status(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
     db: AsyncSession = Depends(get_db),
 ):
     """获取用户学习状态"""
@@ -181,7 +164,7 @@ async def create_capability(
     *,
     db: AsyncSession = Depends(get_db),
     capability_in: UserCapabilityCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ) -> UserCapabilityResponse:
     """创建用户能力记录"""
     # 检查是否已存在
@@ -231,7 +214,7 @@ async def create_capability(
 @router.get("/capabilities/{language}", response_model=UserCapabilityResponse)
 async def get_capability(
     language: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserCapabilityResponse:
     """获取指定语言的能力"""
@@ -275,7 +258,7 @@ async def update_capability(
     *,
     db: AsyncSession = Depends(get_db),
     capability_in: UserCapabilityUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ) -> UserCapabilityResponse:
     """更新用户能力"""
     result = await db.execute(
@@ -321,7 +304,7 @@ async def update_capability(
 
 
 # 管理员功能
-@router.get("/admin/all", dependencies=[Depends(require_admin)])
+@router.get("/admin/all")
 async def get_all_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),

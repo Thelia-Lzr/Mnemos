@@ -5,11 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json
 import uuid
 
+from app.schemas.ai import AIFeature
+from app.services.ai_service import call_ai
 from app.models.chat_message import ChatMessage, MessageType, ProcessingStatus
 from app.models.user import User
-from app.services.openrouter_service import OpenRouterService, get_openrouter_service, TaskType
 
 
 class ChatService:
@@ -17,7 +19,6 @@ class ChatService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.openrouter = get_openrouter_service()
 
     async def send_message(
         self,
@@ -49,7 +50,6 @@ class ChatService:
         await self.db.flush()
 
         # 构建 AI 请求
-        model = self.openrouter.select_model(TaskType.CONVERSATION)
         system_prompt = f"""你是一个专业的{language or '英语'}语言学习助手。
 你的职责：
 1. 与用户进行友好对话
@@ -60,14 +60,13 @@ class ChatService:
 请用{language or '英语'}回答，但可以适当使用中文解释复杂概念。"""
 
         # 调用 AI
-        ai_response = await self.openrouter.call_ai(
-            model=model,
+        ai_response = await call_ai(
+            self.db, AIFeature.CONVERSATION,
             prompt=content,
             context={
                 "system_prompt": system_prompt,
                 **(context or {})
             },
-            user_id=user_id,
         )
 
         # 创建 AI 响应消息
@@ -176,7 +175,6 @@ class ChatService:
         Returns:
             分析结果
         """
-        model = self.openrouter.select_model(TaskType.MATERIAL_ANALYSIS)
 
         prompt = f"""分析以下{language or '英语'}学习材料：
 
@@ -197,10 +195,9 @@ class ChatService:
 }}
 """
 
-        response = await self.openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            self.db, AIFeature.MATERIAL_ANALYSIS,
             prompt=prompt,
-            user_id=user_id,
         )
 
         # 创建系统消息记录
@@ -233,7 +230,6 @@ class ChatService:
         Returns:
             意图识别结果
         """
-        model = self.openrouter.select_model(TaskType.INTENT_RECOGNITION)
 
         prompt = f"""分析用户的意图，返回 JSON 格式：
 {{
@@ -253,21 +249,14 @@ class ChatService:
 - view_practice_history: 查看练习历史
 - account_management: 账户管理（隐私敏感）
 - payment_operations: 支付操作（隐私敏感）
-- password_change: 修改密码（隐私敏感）
 
 用户消息：{message}
 """
 
-        response = await self.openrouter.call_ai(
-            model=model,
-            prompt=prompt,
-            user_id=user_id,
+        response = await call_ai(
+            self.db, AIFeature.INTENT_RECOGNITION, prompt=prompt, context=context,
         )
-
-        return {
-            "success": True,
-            "data": response,
-        }
+        return json.loads(response["content"])
 
 
 def get_chat_service(db: AsyncSession) -> ChatService:

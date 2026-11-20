@@ -16,7 +16,7 @@ export const LANGUAGE_LEVELS = {
 } as const;
 
 export const ROUTES = {
-  AUTH: '/auth',
+  AI_SETTINGS: '/ai-settings',
   DASHBOARD: '/',
   CHAT: '/chat',
   PRACTICE: '/practice',

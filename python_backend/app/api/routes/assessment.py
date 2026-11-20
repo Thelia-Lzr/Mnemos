@@ -7,7 +7,7 @@ from sqlalchemy import select
 from typing import Optional, List
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.assessment import (
     UserCapabilityResponse,
     UserCapabilityCreate,
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/assessment", tags=["评估"])
 async def get_capabilities(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取所有能力"""
     result = await db.execute(
@@ -67,7 +67,7 @@ async def create_capability(
     *,
     request: UserCapabilityCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """创建能力"""
     # 检查是否已存在
@@ -125,7 +125,7 @@ async def get_capability(
     *,
     language: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取能力"""
     result = await db.execute(
@@ -168,7 +168,7 @@ async def update_capability(
     language: str,
     request: UserCapabilityUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """更新能力"""
     result = await db.execute(
@@ -218,7 +218,7 @@ async def comprehensive_assessment(
     *,
     request: ComprehensiveAssessmentRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """综合评估"""
     # TODO: 实现综合评估逻辑
@@ -250,7 +250,7 @@ async def get_assessment_history(
     language: str,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取评估历史"""
     # TODO: 实现评估历史查询
@@ -267,7 +267,7 @@ async def request_reassessment(
     *,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """发起再评估"""
     # TODO: 实现再评估逻辑

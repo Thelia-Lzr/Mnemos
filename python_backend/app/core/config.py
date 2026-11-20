@@ -2,9 +2,8 @@
 Mnemos 项目核心配置
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import List, Optional
-import os
+from typing import List
+from uuid import UUID
 
 
 class Settings(BaseSettings):
@@ -13,7 +12,7 @@ class Settings(BaseSettings):
     # 基础配置
     NODE_ENV: str = "development"
     PORT: int = 8000
-    HOST: str = "localhost"
+    HOST: str = "127.0.0.1"
 
     # 数据库配置
     DB_HOST: str = "localhost"
@@ -27,26 +26,8 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6380
     REDIS_DB: int = 0
 
-    # JWT 配置
-    JWT_SECRET: str = "your_secret_key_here"
-    JWT_REFRESH_SECRET: str = "your_refresh_secret_here"
-    JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-
-    # OpenRouter 配置
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    DEFAULT_AI_MODEL: str = "openai/gpt-4o"
-
-    # 模型配置（可通过环境变量覆盖）
-    CHAT_MODEL: Optional[str] = None
-    ANALYSIS_MODEL: Optional[str] = None
-    PRACTICE_GENERATION_MODEL: Optional[str] = None
-    ASSESSMENT_MODEL: Optional[str] = None
-    VOCABULARY_MODEL: Optional[str] = None
-    FUNCTION_CALLING_MODEL: Optional[str] = None
-    INTENT_RECOGNITION_MODEL: Optional[str] = None
+    # 可选的历史资料 ID
+    WORKSPACE_USER_ID: UUID | None = None
 
     # CORS 配置
     CORS_ORIGIN: str = "http://localhost:3000"
@@ -58,7 +39,6 @@ class Settings(BaseSettings):
     # 速率限制配置
     RATE_LIMIT_WINDOW_MINUTES: int = 15
     RATE_LIMIT_MAX_REQUESTS: int = 100
-    RATE_LIMIT_AUTH_MAX_REQUESTS: int = 20
     RATE_LIMIT_ADMIN_MAX_REQUESTS: int = 50
 
     # Celery 配置
@@ -89,22 +69,10 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> List[str]:
         """获取允许的 CORS 来源"""
-        if self.CORS_ORIGIN:
-            return [self.CORS_ORIGIN]
-        return ["http://localhost:3000"]
-
-    @property
-    def ai_models(self) -> dict:
-        """获取 AI 模型配置"""
-        return {
-            "chat": self.CHAT_MODEL or self.DEFAULT_AI_MODEL,
-            "analysis": self.ANALYSIS_MODEL or self.DEFAULT_AI_MODEL,
-            "practice_generation": self.PRACTICE_GENERATION_MODEL or self.DEFAULT_AI_MODEL,
-            "assessment": self.ASSESSMENT_MODEL or self.DEFAULT_AI_MODEL,
-            "vocabulary": self.VOCABULARY_MODEL or self.DEFAULT_AI_MODEL,
-            "function_calling": self.FUNCTION_CALLING_MODEL or self.DEFAULT_AI_MODEL,
-            "intent_recognition": self.INTENT_RECOGNITION_MODEL or self.DEFAULT_AI_MODEL,
-        }
+        origin = self.CORS_ORIGIN or "http://localhost:3000"
+        if origin == "http://localhost:3000":
+            return [origin, "http://127.0.0.1:3000", "http://[::1]:3000"]
+        return [origin]
 
     model_config = SettingsConfigDict(
         env_file=".env",

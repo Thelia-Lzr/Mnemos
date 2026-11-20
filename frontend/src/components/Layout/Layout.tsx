@@ -1,21 +1,18 @@
 import {
-    AccountCircle,
     AdminPanelSettings,
     Assignment,
+    Tune,
     Book,
     Chat,
     Dashboard,
     ExpandLess,
     ExpandMore,
     Home,
-    Logout,
     Menu as MenuIcon,
     NavigateNext,
-    Notifications,
     Payment,
     Person,
     School,
-    Settings,
     SportsEsports,
     TrendingUp
 } from '@mui/icons-material';
@@ -25,7 +22,6 @@ import {
     Badge,
     Box,
     Breadcrumbs,
-    Chip,
     Collapse,
     Divider,
     Drawer,
@@ -35,8 +31,6 @@ import {
     ListItemButton,
     ListItemIcon,
     ListItemText,
-    Menu,
-    MenuItem,
     Toolbar,
     Typography,
     alpha,
@@ -44,12 +38,11 @@ import {
     useTheme
 } from '@mui/material';
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { logout } from '../../store/slices/authSlice';
-import { AppDispatch, RootState } from '../../store/store';
+import { RootState } from '../../store/store';
 
-const drawerWidth = 260;
+const drawerWidth = 228;
 
 interface MenuItem {
   text: string;
@@ -57,7 +50,6 @@ interface MenuItem {
   path: string;
   badge?: number;
   children?: MenuItem[];
-  adminOnly?: boolean;
 }
 
 interface BreadcrumbItem {
@@ -70,26 +62,21 @@ const Layout: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useDispatch<AppDispatch>();
   
-  const { user } = useSelector((state: RootState) => state.auth);
+  const profile = useSelector((state: RootState) => state.workspace.profile);
   
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   const menuItems: MenuItem[] = [
     { 
-      text: '仪表板', 
+      text: '学习概览',
       icon: <Dashboard />, 
       path: '/',
-      children: [
-        { text: '学习概览', icon: <TrendingUp />, path: '/dashboard' }
-      ]
     },
-    { text: 'AI助手', icon: <Chat />, path: '/chat', badge: 0 },
+    { text: 'AI 对话', icon: <Chat />, path: '/chat', badge: 0 },
     { 
       text: '学习中心', 
       icon: <School />, 
@@ -101,10 +88,11 @@ const Layout: React.FC = () => {
       ]
     },
     { text: '生词表', icon: <Book />, path: '/vocabulary' },
-    { text: 'PK对战', icon: <SportsEsports />, path: '/pk' },
+    { text: 'PK 对战', icon: <SportsEsports />, path: '/pk' },
     { text: '个人资料', icon: <Person />, path: '/profile' },
     { text: '充值中心', icon: <Payment />, path: '/recharge' },
-    { text: '管理员', icon: <AdminPanelSettings />, path: '/admin', adminOnly: true },
+    { text: 'AI 配置', icon: <Tune />, path: '/ai-settings' },
+    { text: '工作台管理', icon: <AdminPanelSettings />, path: '/admin' },
   ];
 
   // Generate breadcrumbs based on current path
@@ -115,15 +103,16 @@ const Layout: React.FC = () => {
     ];
 
     const pathMap: Record<string, string> = {
-      'dashboard': '仪表板',
-      'chat': 'AI助手',
+      'dashboard': '学习概览',
+      'chat': 'AI 对话',
       'practice': '练习中心',
       'practice-history': '练习历史',
       'vocabulary': '生词表',
-      'pk': 'PK对战',
+      'pk': 'PK 对战',
       'profile': '个人资料',
       'recharge': '充值中心',
-      'admin': '管理员',
+      'ai-settings': 'AI 配置',
+      'admin': '工作台管理',
       'assessment': '能力评估'
     };
 
@@ -141,20 +130,6 @@ const Layout: React.FC = () => {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
-  };
-
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = () => {
-    dispatch(logout());
-    handleMenuClose();
-    navigate('/auth');
   };
 
   const handleItemClick = (item: MenuItem) => {
@@ -221,10 +196,6 @@ const Layout: React.FC = () => {
   };
 
   const renderMenuItem = (item: MenuItem, depth: number = 0) => {
-    if (item.adminOnly && user?.role !== 'admin') {
-      return null;
-    }
-
     const isActive = isItemActive(item.path);
     const isExpanded = expandedItems.includes(item.text);
     const hasChildren = item.children && item.children.length > 0;
@@ -233,21 +204,22 @@ const Layout: React.FC = () => {
       <React.Fragment key={item.text}>
         <ListItemButton
           onClick={() => handleItemClick(item)}
+          selected={!hasChildren && isActive}
+          aria-current={!hasChildren && isActive ? 'page' : undefined}
+          aria-expanded={hasChildren ? isExpanded : undefined}
           sx={{
-            pl: 2 + depth * 2,
-            bgcolor: isActive ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
-            borderRight: isActive ? `3px solid ${theme.palette.primary.main}` : 'none',
-            '&:hover': {
-              bgcolor: alpha(theme.palette.primary.main, 0.05),
-            }
+            pl: 1.5 + depth * 2, mx: 1.5, mb: 0.5, minHeight: 42,
+            borderLeft: '3px solid transparent',
+            '&.Mui-selected': { borderLeftColor: 'primary.main' },
+            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.07) },
           }}
         >
-          <ListItemIcon sx={{ color: isActive ? theme.palette.primary.main : 'inherit' }}>
+          <ListItemIcon sx={{ minWidth: 33, color: isActive ? 'primary.main' : 'text.secondary', '& svg': { fontSize: 18 } }}>
             {item.icon}
           </ListItemIcon>
-          <ListItemText 
+          <ListItemText
             primary={item.text}
-            sx={{ color: isActive ? theme.palette.primary.main : 'inherit' }}
+            primaryTypographyProps={{ variant: 'body2', fontWeight: isActive ? 750 : 550 }}
           />
           {item.badge !== undefined && item.badge > 0 && (
             <Badge badgeContent={item.badge} color="error" />
@@ -269,36 +241,35 @@ const Layout: React.FC = () => {
   };
 
   const drawer = (
-    <Box>
-      <Toolbar>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <Toolbar sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+        <Box aria-hidden="true" sx={{ width: 15, height: 15, bgcolor: 'currentColor', transform: 'rotate(45deg)', mr: 1.75 }} />
+        <Typography variant="h5" component="span">Mnemos</Typography>
+      </Toolbar>
+      <List sx={{ pt: 2 }}>
+        {menuItems.map((item) => renderMenuItem(item))}
+      </List>
+      <Box sx={{ mt: 'auto', borderTop: 1, borderColor: 'divider', p: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
           <Avatar 
             sx={{ 
-              bgcolor: theme.palette.primary.main, 
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              borderRadius: 0.5,
               width: 32, 
               height: 32, 
               mr: 1 
             }}
           >
-            {user?.username?.charAt(0).toUpperCase() || 'U'}
+            {profile?.username?.charAt(0).toUpperCase() || 'M'}
           </Avatar>
-          <Box>
+          <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" noWrap>
-              {user?.username || '用户'}
+              {profile?.username || '本地资料'}
             </Typography>
-            <Chip 
-              label={user?.role === 'admin' ? '管理员' : '学习者'}
-              size="small"
-              color={user?.role === 'admin' ? 'secondary' : 'primary'}
-              sx={{ fontSize: '0.7rem', height: 16 }}
-            />
           </Box>
         </Box>
-      </Toolbar>
-      <Divider />
-      <List sx={{ pt: 1 }}>
-        {menuItems.map((item) => renderMenuItem(item))}
-      </List>
+      </Box>
     </Box>
   );
 
@@ -311,7 +282,7 @@ const Layout: React.FC = () => {
           ml: { md: `${drawerWidth}px` },
           bgcolor: 'background.paper',
           color: 'text.primary',
-          boxShadow: 1,
+          boxShadow: 'none',
           borderBottom: `1px solid ${theme.palette.divider}`,
           height: { xs: 56, sm: 64 }
         }}
@@ -319,7 +290,7 @@ const Layout: React.FC = () => {
         <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
           <IconButton
             color="inherit"
-            aria-label="open drawer"
+            aria-label="打开导航"
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { md: 'none' } }}
@@ -332,19 +303,16 @@ const Layout: React.FC = () => {
               variant="h6" 
               noWrap 
               component="div" 
-              sx={{ 
-                mb: { xs: 0, sm: 0.5 },
-                fontSize: { xs: '1rem', sm: '1.25rem' }
-              }}
+              sx={{ display: { xs: 'block', sm: 'none' } }}
             >
-              AI语言学习助手
+              Mnemos
             </Typography>
             
             {/* Breadcrumbs - Hidden on mobile */}
             <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
               <Breadcrumbs 
                 separator={<NavigateNext fontSize="small" />}
-                aria-label="breadcrumb"
+                aria-label="当前位置"
                 sx={{ fontSize: '0.875rem' }}
               >
                 {breadcrumbs.map((crumb, index) => {
@@ -386,74 +354,12 @@ const Layout: React.FC = () => {
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton 
-              color="inherit"
-              sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-            >
-              <Badge badgeContent={0} color="error">
-                <Notifications />
-              </Badge>
-            </IconButton>
-            
-            <IconButton
-              onClick={handleMenuClick}
-              color="inherit"
-              sx={{ ml: { xs: 0, sm: 1 } }}
-            >
-              <AccountCircle />
-            </IconButton>
-            
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
-              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-              slotProps={{
-                paper: {
-                  sx: {
-                    minWidth: 200,
-                    mt: 1
-                  }
-                }
-              }}
-            >
-              <MenuItem onClick={() => { navigate('/profile'); handleMenuClose(); }}>
-                <ListItemIcon>
-                  <Person fontSize="small" />
-                </ListItemIcon>
-                <Typography variant="body2">个人资料</Typography>
-              </MenuItem>
-              <MenuItem 
-                onClick={() => { navigate('/settings'); handleMenuClose(); }}
-                sx={{ display: { xs: 'flex', sm: 'none' } }}
-              >
-                <ListItemIcon>
-                  <Notifications fontSize="small" />
-                </ListItemIcon>
-                <Typography variant="body2">通知</Typography>
-              </MenuItem>
-              <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}>
-                <ListItemIcon>
-                  <Settings fontSize="small" />
-                </ListItemIcon>
-                <Typography variant="body2">设置</Typography>
-              </MenuItem>
-              <Divider />
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <Logout fontSize="small" />
-                </ListItemIcon>
-                <Typography variant="body2">退出登录</Typography>
-              </MenuItem>
-            </Menu>
-          </Box>
         </Toolbar>
       </AppBar>
       
       <Box
         component="nav"
+        aria-label="主导航"
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
       >
         <Drawer
@@ -495,6 +401,7 @@ const Layout: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           bgcolor: 'background.default',
           p: 0,
           width: { md: `calc(100% - ${drawerWidth}px)` },

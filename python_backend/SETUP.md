@@ -2,7 +2,7 @@
 
 ## 环境要求
 
-- Python 3.11+
+- Python 3.11 或 3.12
 - PostgreSQL 15+
 - Redis 7+
 
@@ -18,18 +18,18 @@ sudo apt install python3-pip python3-venv
 
 **macOS:**
 ```bash
-brew install python3
+brew install python@3.12
 ```
 
 ### 2. 创建虚拟环境
 
 ```bash
 cd python_backend
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# 或
-venv\Scripts\activate  # Windows
+python3.12 -m venv .venv
+source .venv/bin/activate
 ```
+
+Windows PowerShell 可使用 `py -3.12 -m venv .venv` 和 `.\.venv\Scripts\Activate.ps1`。
 
 ### 3. 安装依赖
 
@@ -44,17 +44,24 @@ cp .env.example .env
 # 编辑 .env 文件，设置正确的配置
 ```
 
-### 5. 启动服务
+### 5. 初始化本地数据库
+
+```bash
+docker compose -f ../docker-compose.yml up -d --wait
+alembic upgrade head
+```
+
+### 6. 启动服务
 
 ```bash
 # 方式 1：使用 Makefile
-make dev
+make dev PYTHON=.venv/bin/python
 
 # 方式 2：直接使用 uvicorn
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 6. 启动 Celery Worker（可选）
+### 7. 启动 Celery Worker（按需）
 
 ```bash
 celery -A app.tasks.celery_app worker --loglevel=info
@@ -109,11 +116,11 @@ pytest --cov=app --cov-report=html
 
 ```bash
 # 代码格式化
-make format
+make format PYTHON=.venv/bin/python
 
 # 代码风格检查
-make lint
+make lint PYTHON=.venv/bin/python
 
 # 自动修复风格问题
-make lint-fix
+make lint-fix PYTHON=.venv/bin/python
 ```

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Fade, Slide, Grow, Zoom } from '@mui/material';
-import { TransitionProps } from '@mui/material/transitions';
+import { Box, Fade, Slide, Grow, Zoom, useMediaQuery } from '@mui/material';
 
 type TransitionType = 'fade' | 'slide' | 'grow' | 'zoom';
 
@@ -19,10 +18,12 @@ const PageTransition: React.FC<PageTransitionProps> = ({
   timeout = 300,
   in: inProp = true,
 }) => {
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
   const renderTransition = () => {
     const commonProps = {
       in: inProp,
-      timeout,
+      timeout: prefersReducedMotion ? 0 : timeout,
       children: (
         <Box sx={{ width: '100%', height: '100%' }}>
           {children}

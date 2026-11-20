@@ -1,5 +1,9 @@
 # Mnemos 项目架构文档
 
+当前的本地工作台、AI 配置与路由见[设计规范](../.kiro/specs/ai-language-learning-app/design.md)。以下保留旧版架构快照。
+
+> 历史存档，记录 Python 迁移前的设计。当前架构和启动方式见[项目 README](../README.md#-项目架构)。
+
 ## 概述
 
 Mnemos 是一个全栈 AI 驱动的语言学习应用，具有实时互动功能。

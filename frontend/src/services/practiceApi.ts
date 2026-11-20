@@ -469,9 +469,9 @@ class PracticeApi {
     const response = await api.post('/practice/followup', {
       question: request.followUpQuestion,
       userAnswer: request.userAnswer,
-      practiceGroupId: request.questionId
+      questionId: request.questionId
     });
-    return response.data.data;
+    return { ...response.data.data, answer: response.data.data.response };
   }
 
   /**
@@ -482,7 +482,7 @@ class PracticeApi {
       question: request.followUpQuestion,
       practiceGroupId: request.practiceGroupId
     });
-    return response.data.data;
+    return { ...response.data.data, answer: response.data.data.response };
   }
 
   /**
@@ -496,14 +496,6 @@ class PracticeApi {
     onError: (error: Error) => void
   ): Promise<void> {
     try {
-      // Get token directly from SecurityUtils
-      const { default: SecurityUtils } = await import('../utils/security');
-      const token = SecurityUtils.getSecureItem<string>('token');
-      
-      if (!token) {
-        throw new Error('用户未登录，请重新登录');
-      }
-
       const data = await this.askQuestionFollowUp(request);
       onCreditCost(data.creditCost || 0);
       onChunk(data.answer || '');
@@ -524,14 +516,6 @@ class PracticeApi {
     onError: (error: Error) => void
   ): Promise<void> {
     try {
-      // Get token directly from SecurityUtils
-      const { default: SecurityUtils } = await import('../utils/security');
-      const token = SecurityUtils.getSecureItem<string>('token');
-      
-      if (!token) {
-        throw new Error('用户未登录，请重新登录');
-      }
-
       const data = await this.askPracticeGroupFollowUp(request);
       onCreditCost(data.creditCost || 0);
       onChunk(data.answer || '');

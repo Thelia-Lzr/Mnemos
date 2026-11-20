@@ -1,5 +1,4 @@
 import {
-    Api as ApiIcon,
     Dashboard as DashboardIcon,
     Monitor as MonitoringIcon,
     ShoppingCart as PackageIcon,
@@ -14,7 +13,6 @@ import {
     Typography
 } from '@mui/material';
 import React, { useState } from 'react';
-import OpenRouterConfig from '../components/Admin/OpenRouterConfig';
 import PackageManager from '../components/Admin/PackageManager';
 import SystemMonitoring from '../components/Admin/SystemMonitoring';
 import SystemStats from '../components/Admin/SystemStats';
@@ -64,7 +62,7 @@ const AdminPage: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom>
-        管理员控制台
+        工作台管理
       </Typography>
       
       <Paper sx={{ width: '100%', mt: 3 }}>
@@ -100,11 +98,6 @@ const AdminPage: React.FC = () => {
               label="系统监控" 
               {...a11yProps(4)} 
             />
-            <Tab 
-              icon={<ApiIcon />} 
-              label="API配置" 
-              {...a11yProps(5)} 
-            />
           </Tabs>
         </Box>
         
@@ -126,10 +119,6 @@ const AdminPage: React.FC = () => {
         
         <TabPanel value={tabValue} index={4}>
           <SystemMonitoring />
-        </TabPanel>
-        
-        <TabPanel value={tabValue} index={5}>
-          <OpenRouterConfig />
         </TabPanel>
       </Paper>
     </Box>

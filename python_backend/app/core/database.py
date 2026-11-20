@@ -34,7 +34,8 @@ def init_database() -> None:
         pool_pre_ping=True,
         pool_recycle=3600,
         pool_timeout=30,
-        echo=settings.NODE_ENV == "development",
+        echo=False,
+        hide_parameters=True,
     )
 
     AsyncSessionLocal = async_sessionmaker(

@@ -95,7 +95,7 @@ def log_security_event(
     记录安全事件
 
     Args:
-        event: 事件类型（login, logout, password_change 等）
+        event: 事件类型
         user_id: 用户 ID
         ip_address: IP 地址
         details: 详细信息
@@ -114,51 +114,6 @@ def log_security_event(
         security_logger.info(f"Security event: {log_data}")
     else:
         security_logger.warning(f"Security event: {log_data}")
-
-
-# 常用安全事件
-def log_login_attempt(
-    email: str,
-    success: bool,
-    user_id: Optional[str] = None,
-    ip_address: Optional[str] = None,
-) -> None:
-    """记录登录尝试"""
-    log_security_event(
-        event="login_attempt",
-        user_id=user_id,
-        ip_address=ip_address,
-        details={"email": email},
-        success=success,
-    )
-
-
-def log_password_change(
-    user_id: str,
-    success: bool,
-    ip_address: Optional[str] = None,
-) -> None:
-    """记录密码修改"""
-    log_security_event(
-        event="password_change",
-        user_id=user_id,
-        ip_address=ip_address,
-        success=success,
-    )
-
-
-def log_token_refresh(
-    user_id: str,
-    success: bool,
-    ip_address: Optional[str] = None,
-) -> None:
-    """记录令牌刷新"""
-    log_security_event(
-        event="token_refresh",
-        user_id=user_id,
-        ip_address=ip_address,
-        success=success,
-    )
 
 
 def log_suspicious_activity(

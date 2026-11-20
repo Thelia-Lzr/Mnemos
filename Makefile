@@ -16,14 +16,14 @@ NC := \033[0m # No Color
 
 ## help: 显示所有可用命令
 help:
-	@echo "$(BLUE)=== Language Helper - 可用命令 ===\n$(NC)"
+	@echo "$(BLUE)=== Mnemos - 可用命令 ===\n$(NC)"
 	@echo "$(YELLOW)初始化和设置:$(NC)"
 	@echo "  make install          - 安装所有依赖 (python_backend & frontend)"
 	@echo "  make setup-dev        - 完整的开发环境初始化"
-	@echo "  make init             - 添加测试用户 (thelia@example.com / 123456)\n"
+	@echo "  make init             - 初始化工作台数据库\n"
 	@echo "$(YELLOW)开发:$(NC)"
 	@echo "  make dev              - 启动 Python 后端开发服务"
-	@echo "  make start            - 启动已构建的应用\n"
+	@echo "  make start            - 启动 Python 后端（关闭热重载）\n"
 	@echo "$(YELLOW)构建:$(NC)"
 	@echo "  make build            - 构建前端并检查后端可编译"
 	@echo "  make build-backend    - 检查 Python 后端可编译\n"
@@ -61,11 +61,8 @@ install: check-python
 	cd $(FRONTEND_DIR) && npm install
 	@echo "$(GREEN)✓ 前端依赖安装完成$(NC)"
 
-## init: 添加测试用户
-init: check-python
-	@echo "$(BLUE)添加测试用户...$(NC)"
-	cd $(PY_BACKEND_DIR) && PYTHONPATH=. $(PYTHON_BIN) scripts/init_test_user.py
-	@echo "$(GREEN)✓ 测试用户添加完成$(NC)"
+## init: 初始化工作台数据库
+init: db-migrate
 
 ## setup-dev: 完整的开发环境初始化
 setup-dev: install docker-up db-migrate
@@ -79,12 +76,12 @@ setup-dev: install docker-up db-migrate
 ## dev: 启动后端开发环境
 dev: check-python
 	@echo "$(BLUE)启动后端开发环境...$(NC)"
-	cd $(PY_BACKEND_DIR) && PORT=$(PORT) $(PYTHON_BIN) -m uvicorn app.main:app --reload --host 0.0.0.0 --port $(PORT)
+	cd $(PY_BACKEND_DIR) && PORT=$(PORT) $(PYTHON_BIN) -m uvicorn app.main:app --reload --host 127.0.0.1 --port $(PORT)
 
-## start: 启动已构建的应用
+## start: 启动 Python 后端（关闭热重载）
 start: check-python
-	@echo "$(BLUE)启动应用...$(NC)"
-	cd $(PY_BACKEND_DIR) && PORT=$(PORT) $(PYTHON_BIN) -m uvicorn app.main:app --host 0.0.0.0 --port $(PORT)
+	@echo "$(BLUE)启动 Python 后端...$(NC)"
+	cd $(PY_BACKEND_DIR) && PORT=$(PORT) $(PYTHON_BIN) -m uvicorn app.main:app --host 127.0.0.1 --port $(PORT)
 
 ## build: 构建后端和前端
 build: build-backend

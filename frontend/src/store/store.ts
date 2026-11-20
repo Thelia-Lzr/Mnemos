@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
-import authSlice from './slices/authSlice';
+import workspaceSlice from './slices/workspaceSlice';
 import chatSlice from './slices/chatSlice';
 import practiceSlice from './slices/practiceSlice';
 import vocabularySlice from './slices/vocabularySlice';
@@ -9,7 +9,7 @@ import dailyRecommendationSlice from './slices/dailyRecommendationSlice';
 
 export const store = configureStore({
   reducer: {
-    auth: authSlice,
+    workspace: workspaceSlice,
     chat: chatSlice,
     practice: practiceSlice,
     vocabulary: vocabularySlice,

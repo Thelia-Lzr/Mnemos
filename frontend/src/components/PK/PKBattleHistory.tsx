@@ -1,3 +1,4 @@
+import { useAppSelector } from '../../store/hooks';
 import {
     AccessTime,
     Close,
@@ -48,7 +49,7 @@ const PKBattleHistory: React.FC<PKBattleHistoryProps> = ({ language }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUserId = localStorage.getItem('userId');
+  const currentUserId = useAppSelector((state) => state.workspace.profile?.id);
 
   useEffect(() => {
     fetchBattleHistory();

@@ -1,7 +1,7 @@
 """
 练习相关 Pydantic 模式
 """
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -158,5 +158,6 @@ class PracticeFollowupRequest(BaseModel):
     """练习追问请求"""
     questionId: Optional[str] = None
     practiceGroupId: Optional[str] = None
-    query: str = Field(..., min_length=1)
-    language: str
+    query: str = Field(min_length=1, validation_alias=AliasChoices("query", "question"))
+    language: Optional[str] = None
+    userAnswer: Optional[str] = None

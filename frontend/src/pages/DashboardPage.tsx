@@ -1,9 +1,9 @@
 import {
     AccountBalanceWallet,
+    ArrowOutward,
     Assignment,
     Book,
     EmojiEvents,
-    PlayArrow,
     School,
     Speed,
     SportsEsports,
@@ -19,7 +19,7 @@ import {
     Box,
     Button,
     Card,
-    CardActions,
+    CardActionArea,
     CardContent,
     Chip,
     Divider,
@@ -34,12 +34,13 @@ import {
     useTheme
 } from '@mui/material';
 import React, { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
 import DailyRecommendationCard from '../components/DailyRecommendation/DailyRecommendationCard';
 import CreditBalance from '../components/Payment/CreditBalance';
 import api from '../services/api';
-import { AppDispatch, RootState } from '../store/store';
+import { RootState } from '../store/store';
+import { brand } from '../theme/theme';
 
 interface LearningStats {
   totalStudyTime: number;
@@ -76,8 +77,7 @@ interface RecentActivity {
 const DashboardPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const dispatch = useDispatch<AppDispatch>();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const profile = useSelector((state: RootState) => state.workspace.profile);
   
   const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
@@ -90,32 +90,32 @@ const DashboardPage: React.FC = () => {
 
   const quickActions: QuickAction[] = [
     {
-      title: 'AI助手聊天',
-      description: '与AI助手进行语言学习对话',
+      title: 'AI 对话',
+      description: '练习表达，获得语言反馈',
       icon: <School />,
       path: '/chat',
       color: theme.palette.primary.main
     },
     {
-      title: '开始练习',
+      title: '练习题库',
       description: '生成个性化练习题目',
       icon: <Assignment />,
       path: '/practice',
-      color: theme.palette.success.main
+      color: theme.palette.secondary.main
     },
     {
-      title: '管理生词表',
+      title: '生词表',
       description: '查看和练习生词',
       icon: <Book />,
       path: '/vocabulary',
-      color: theme.palette.info.main
+      color: theme.palette.primary.main
     },
     {
-      title: 'PK对战',
+      title: 'PK 对战',
       description: '与其他用户竞技学习',
       icon: <SportsEsports />,
       path: '/pk',
-      color: theme.palette.warning.main
+      color: theme.palette.secondary.main
     }
   ];
 
@@ -270,30 +270,30 @@ const DashboardPage: React.FC = () => {
 
   return (
     <Box sx={{ 
-      p: { xs: 2, sm: 3 },
-      maxWidth: '100%',
-      overflow: 'hidden'
+      p: { xs: 2, sm: 3, lg: 4 },
+      maxWidth: 1440,
+      mx: 'auto'
     }}>
-      {/* Header */}
-      <Box sx={{ mb: { xs: 3, md: 4 } }}>
-        <Typography 
-          variant="h4" 
-          component="h1" 
-          gutterBottom
-          sx={{
-            fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem' },
-            fontWeight: 600
-          }}
-        >
-          欢迎回来，{user?.username || '学习者'}！
-        </Typography>
-        <Typography 
-          variant="body1" 
-          color="text.secondary"
-          sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-        >
-          继续您的语言学习之旅
-        </Typography>
+      <Box component="header" sx={{
+        display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) 32%' },
+        minHeight: { sm: 235 }, mb: { xs: 3, md: 4 }, overflow: 'hidden',
+      }}>
+        <Box sx={{ bgcolor: brand.blue, color: 'white', p: { xs: 3, sm: 4, lg: 5 } }}>
+          <Typography variant="h1" sx={{ fontSize: { xs: '2.5rem', md: '3.5rem', lg: '4.5rem' } }}>
+            学习概览
+          </Typography>
+          <Typography sx={{
+            borderTop: '1px solid', borderColor: brand.lilac, mt: { xs: 2, md: 3 },
+            pt: 2, maxWidth: 380, overflowWrap: 'anywhere',
+          }}>
+            欢迎回来，{profile?.username || '学习者'}
+          </Typography>
+        </Box>
+        <Box aria-hidden="true" sx={{
+          display: { xs: 'none', sm: 'grid' }, placeItems: 'center', bgcolor: brand.violet, p: 2,
+        }}>
+          <Box className="mnemos-orbit" sx={{ width: 'min(90%, 205px)' }} />
+        </Box>
       </Box>
 
       {error && (
@@ -303,6 +303,38 @@ const DashboardPage: React.FC = () => {
       )}
 
       <Grid container spacing={{ xs: 2, sm: 3 }}>
+        <Grid item xs={12}>
+          <Typography component="h2" variant="h5" sx={{ mb: 1.5 }}>开始学习</Typography>
+          <Box sx={{
+            display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', lg: 'repeat(4, 1fr)' },
+            gap: 1.5,
+          }}>
+            {quickActions.map((action) => (
+              <Card key={action.path} sx={{ borderTop: '3px solid', borderTopColor: action.color }}>
+                <CardActionArea component={Link} to={action.path} sx={{
+                  height: '100%', display: 'block',
+                  '&:hover': { bgcolor: alpha(action.color, 0.06) },
+                }}>
+                  <CardContent sx={{ p: { xs: 1.5, sm: 2.5 } }}>
+                    <Box aria-hidden="true" sx={{
+                      display: 'flex', justifyContent: 'space-between', color: action.color, mb: 2,
+                    }}>
+                      {action.icon}
+                      <ArrowOutward fontSize="small" />
+                    </Box>
+                    <Typography component="h3" variant="h6" sx={{ mb: 0.5 }}>
+                      {action.title}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {action.description}
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            ))}
+          </Box>
+        </Grid>
+
         {/* Daily Recommendation */}
         <Grid item xs={12}>
           <DailyRecommendationCard language={userLanguage} />
@@ -327,7 +359,7 @@ const DashboardPage: React.FC = () => {
                   mb: { xs: 1, sm: 0 },
                   color: theme.palette.primary.main 
                 }} />
-                <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                <Typography component="h2" variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                   Credit余额
                 </Typography>
               </Box>
@@ -368,7 +400,7 @@ const DashboardPage: React.FC = () => {
                   mb: { xs: 1, sm: 0 },
                   color: theme.palette.success.main 
                 }} />
-                <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                <Typography component="h2" variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                   学习统计
                 </Typography>
               </Box>
@@ -479,100 +511,6 @@ const DashboardPage: React.FC = () => {
               )}
             </CardContent>
           </Card>
-        </Grid>
-
-        {/* Quick Actions */}
-        <Grid item xs={12}>
-          <Typography 
-            variant="h6" 
-            gutterBottom 
-            sx={{ 
-              mt: 2,
-              fontSize: { xs: '1rem', sm: '1.25rem' },
-              textAlign: { xs: 'center', sm: 'left' }
-            }}
-          >
-            快捷操作
-          </Typography>
-          <Grid container spacing={{ xs: 2, sm: 2, md: 3 }}>
-            {quickActions.map((action, index) => (
-              <Grid item xs={6} sm={6} md={3} key={index}>
-                <Card 
-                  sx={{ 
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: theme.shadows[4]
-                    }
-                  }}
-                  onClick={() => navigate(action.path)}
-                >
-                  <CardContent sx={{ 
-                    textAlign: 'center', 
-                    py: { xs: 2, sm: 3 },
-                    px: { xs: 1, sm: 2 },
-                    flexGrow: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center'
-                  }}>
-                    <Avatar 
-                      sx={{ 
-                        bgcolor: alpha(action.color, 0.1),
-                        color: action.color,
-                        width: { xs: 40, sm: 56 },
-                        height: { xs: 40, sm: 56 },
-                        mx: 'auto',
-                        mb: { xs: 1, sm: 2 }
-                      }}
-                    >
-                      {action.icon}
-                    </Avatar>
-                    <Typography 
-                      variant="h6" 
-                      gutterBottom
-                      sx={{ 
-                        fontSize: { xs: '0.875rem', sm: '1rem', md: '1.125rem' },
-                        lineHeight: 1.2
-                      }}
-                    >
-                      {action.title}
-                    </Typography>
-                    <Typography 
-                      variant="body2" 
-                      color="text.secondary"
-                      sx={{ 
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                        display: { xs: 'none', sm: 'block' }
-                      }}
-                    >
-                      {action.description}
-                    </Typography>
-                  </CardContent>
-                  <CardActions sx={{ 
-                    justifyContent: 'center', 
-                    pb: { xs: 1, sm: 2 },
-                    pt: 0
-                  }}>
-                    <Button 
-                      size="small" 
-                      startIcon={<PlayArrow />}
-                      sx={{ 
-                        color: action.color,
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                      }}
-                    >
-                      开始
-                    </Button>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
         </Grid>
 
         {/* Recent Activities */}

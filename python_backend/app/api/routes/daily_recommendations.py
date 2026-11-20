@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import datetime, date
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.recommendation import (
     DailyRecommendationResponse,
     RecommendationFeedbackRequest,
@@ -27,7 +27,7 @@ async def get_today_recommendations(
     *,
     language: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取今日推荐"""
     today = date.today()
@@ -85,7 +85,7 @@ async def get_recommendations_by_date(
     language: str,
     target_date: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取指定日期推荐"""
     try:
@@ -128,7 +128,7 @@ async def generate_recommendations(
     language: str,
     request: Optional[RecommendationGenerateRequest] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """生成推荐"""
     service = get_daily_recommendation_service(db)
@@ -153,7 +153,7 @@ async def mark_as_viewed(
     language: str,
     recommendation_id: str = Body(..., embed=True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """标记已查看"""
     result = await db.execute(
@@ -184,7 +184,7 @@ async def submit_feedback(
     request: RecommendationFeedbackRequest,
     recommendation_id: str = Body(..., embed=True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """提交反馈"""
     result = await db.execute(
@@ -215,7 +215,7 @@ async def get_recommendation_history(
     limit: int = Query(30, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取推荐历史"""
     result = await db.execute(

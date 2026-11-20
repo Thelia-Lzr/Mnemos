@@ -8,8 +8,7 @@ from typing import Optional, List
 import uuid
 from datetime import datetime, timezone
 
-from app.api.deps import get_db, get_current_user, require_admin
-from app.core.config import settings
+from app.api.deps import get_db, get_workspace_user
 from app.models.user import User
 from app.models.task import AsyncTask
 from app.models.practice import PracticeResult
@@ -18,22 +17,6 @@ from app.schemas.payment import CreditAdjustRequest
 
 router = APIRouter(prefix="/api/admin", tags=["管理员"])
 
-
-_openrouter_config_store = {
-    "apiKey": settings.OPENROUTER_API_KEY,
-    "baseUrl": settings.OPENROUTER_BASE_URL,
-    "timeout": 30000,
-    "maxRetries": 3,
-    "retryDelay": 1000,
-    "dailyTokenLimit": None,
-    "monthlyTokenLimit": None,
-    "costThreshold": None,
-    "isActive": bool(settings.OPENROUTER_API_KEY),
-    "lastTestedAt": None,
-    "testStatus": "untested",
-    "updatedAt": None,
-    "updatedBy": None,
-}
 
 
 def _to_package_dict(p: RechargePackage) -> dict:
@@ -63,7 +46,6 @@ async def get_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_admin),
 ):
     """获取用户列表"""
     if page > 1 and offset == 0:
@@ -123,7 +105,6 @@ async def get_user(
     *,
     user_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """获取用户详情"""
     result = await db.execute(
@@ -210,7 +191,6 @@ async def get_user(
 async def get_system_statistics(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """获取系统统计"""
     # 用户统计
@@ -244,7 +224,6 @@ async def get_system_statistics(
 async def get_admin_packages(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """获取所有套餐（包括非激活）"""
     result = await db.execute(
@@ -266,7 +245,7 @@ async def create_package(
     *,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_workspace_user),
 ):
     """创建套餐"""
     package = RechargePackage(
@@ -300,7 +279,6 @@ async def update_package(
     package_id: str,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """更新套餐"""
     result = await db.execute(
@@ -341,7 +319,6 @@ async def delete_package(
     *,
     package_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """删除套餐（软删除）"""
     result = await db.execute(
@@ -360,7 +337,6 @@ async def delete_package(
 async def get_credit_statistics(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """获取积分统计"""
     # 总积分
@@ -400,7 +376,6 @@ async def adjust_user_credits(
     user_id: str,
     request: CreditAdjustRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """调整用户积分"""
     # 获取用户
@@ -463,7 +438,6 @@ async def adjust_user_credits(
 async def get_queue_metrics(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """获取任务队列指标"""
     status_counts_result = await db.execute(
@@ -500,7 +474,6 @@ async def get_admin_tasks(
     type: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_admin),
 ):
     """获取管理员任务列表"""
     query = select(AsyncTask)
@@ -549,7 +522,6 @@ async def retry_failed_tasks(
     *,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """重试失败任务"""
     task_ids = request.get("taskIds", [])
@@ -579,7 +551,6 @@ async def clear_queue(
     *,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
 ):
     """清理任务队列（清理完成/失败任务）"""
     include_completed = request.get("includeCompleted", True)
@@ -609,155 +580,4 @@ async def clear_queue(
             "deletedTasks": deleted_count,
             "clearedDays": request.get("days", 0),
         },
-    }
-
-
-@router.get("/openrouter/config")
-async def get_openrouter_config(
-    *,
-    current_user: User = Depends(require_admin),
-):
-    """获取 OpenRouter 配置"""
-    return {"success": True, "data": _openrouter_config_store}
-
-
-@router.put("/openrouter/config")
-async def update_openrouter_config(
-    *,
-    request: dict,
-    current_user: User = Depends(require_admin),
-):
-    """更新 OpenRouter 配置"""
-    allowed_keys = {
-        "apiKey",
-        "baseUrl",
-        "timeout",
-        "maxRetries",
-        "retryDelay",
-        "dailyTokenLimit",
-        "monthlyTokenLimit",
-        "costThreshold",
-        "isActive",
-    }
-    for key in allowed_keys:
-        if key in request:
-            _openrouter_config_store[key] = request[key]
-
-    _openrouter_config_store["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    _openrouter_config_store["updatedBy"] = str(current_user.id)
-    _openrouter_config_store["isActive"] = bool(_openrouter_config_store.get("apiKey"))
-
-    return {
-        "success": True,
-        "data": _openrouter_config_store,
-        "message": "OpenRouter config updated",
-    }
-
-
-@router.post("/openrouter/test-key")
-async def test_openrouter_key(
-    *,
-    request: dict,
-    current_user: User = Depends(require_admin),
-):
-    """测试 OpenRouter API Key（轻量模拟）"""
-    api_key = request.get("apiKey", "")
-    is_valid = isinstance(api_key, str) and api_key.startswith("sk-or-") and len(api_key) > 10
-    test_status = "success" if is_valid else "failed"
-    now = datetime.now(timezone.utc).isoformat()
-
-    _openrouter_config_store["lastTestedAt"] = now
-    _openrouter_config_store["testStatus"] = test_status
-
-    result = {
-        "success": is_valid,
-        "responseTime": 120,
-        "availableModels": ["openai/gpt-4o", "anthropic/claude-3.5-sonnet"],
-        "errorMessage": None if is_valid else "Invalid API key format",
-        "connectionTest": {
-            "success": is_valid,
-            "latency": 120,
-            "error": None if is_valid else "Authentication failed",
-        },
-        "modelTests": [
-            {
-                "model": "openai/gpt-4o",
-                "success": is_valid,
-                "responseTime": 130,
-                "tokensUsed": 25,
-            }
-        ],
-        "testedAt": now,
-    }
-
-    return {"success": True, "data": result}
-
-
-@router.get("/openrouter/usage-stats")
-async def get_openrouter_usage_stats(
-    *,
-    current_user: User = Depends(require_admin),
-):
-    """获取 OpenRouter 使用统计（最小可用响应）"""
-    now = datetime.now(timezone.utc).isoformat()
-    empty_period = {
-        "totalRequests": 0,
-        "totalTokens": 0,
-        "totalCost": 0,
-        "averageResponseTime": 0,
-        "errorRate": 0,
-    }
-    data = {
-        "daily": empty_period,
-        "weekly": empty_period,
-        "monthly": empty_period,
-        "modelUsage": {},
-        "costAnalysis": {
-            "totalCost": 0,
-            "costByModel": {},
-            "costByTaskType": {},
-            "projectedMonthlyCost": 0,
-            "costTrend": [],
-        },
-        "performanceMetrics": {
-            "averageResponseTime": 0,
-            "p95ResponseTime": 0,
-            "p99ResponseTime": 0,
-            "uptime": 100,
-            "errorRate": 0,
-            "throughput": 0,
-        },
-        "generatedAt": now,
-    }
-    return {"success": True, "data": data}
-
-
-@router.get("/openrouter/models")
-async def get_openrouter_models(
-    *,
-    current_user: User = Depends(require_admin),
-):
-    """获取可用模型列表"""
-    return {
-        "success": True,
-        "data": [
-            {
-                "id": "openai/gpt-4o",
-                "name": "GPT-4o",
-                "description": "General-purpose multimodal model",
-                "contextLength": 128000,
-                "pricing": {"prompt": 0.0, "completion": 0.0},
-                "capabilities": ["chat", "analysis", "tools"],
-                "isAvailable": True,
-            },
-            {
-                "id": "anthropic/claude-3.5-sonnet",
-                "name": "Claude 3.5 Sonnet",
-                "description": "High-quality reasoning model",
-                "contextLength": 200000,
-                "pricing": {"prompt": 0.0, "completion": 0.0},
-                "capabilities": ["chat", "analysis", "coding"],
-                "isAvailable": True,
-            },
-        ],
     }

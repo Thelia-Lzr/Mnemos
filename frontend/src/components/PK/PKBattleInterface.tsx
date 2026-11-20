@@ -1,3 +1,4 @@
+import { useAppSelector } from '../../store/hooks';
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -17,7 +18,6 @@ import {
 } from '@mui/material';
 import { Timer, EmojiEvents } from '@mui/icons-material';
 import io, { Socket } from 'socket.io-client';
-import { SecurityUtils } from '../../utils/security';
 
 interface PKBattleInterfaceProps {
   battleId: string;
@@ -66,7 +66,7 @@ const PKBattleInterface: React.FC<PKBattleInterfaceProps> = ({
   const [showResult, setShowResult] = useState(false);
   const [battleResult, setBattleResult] = useState<any>(null);
 
-  const currentUserId = localStorage.getItem('userId'); // 假设用户ID存储在localStorage中
+  const currentUserId = useAppSelector((state) => state.workspace.profile?.id);
 
   useEffect(() => {
     // 初始化Socket连接
@@ -116,9 +116,7 @@ const PKBattleInterface: React.FC<PKBattleInterfaceProps> = ({
   const fetchBattleInfo = async () => {
     try {
       const response = await fetch(`/api/pk/battle/${battleId}`, {
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
+
       });
 
       if (response.ok) {
@@ -142,9 +140,7 @@ const PKBattleInterface: React.FC<PKBattleInterfaceProps> = ({
     try {
       const response = await fetch(`/api/pk/battle/${battleId}/start`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
-        },
+
       });
 
       if (!response.ok) {
@@ -182,7 +178,6 @@ const PKBattleInterface: React.FC<PKBattleInterfaceProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SecurityUtils.getSecureItem<string>('token')}`,
         },
         body: JSON.stringify({
           questionId: questions[currentQuestionIndex].id,

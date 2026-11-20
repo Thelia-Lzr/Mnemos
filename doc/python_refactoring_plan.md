@@ -1,5 +1,7 @@
 # Mnemos Python 后端重构计划
 
+> 历史迁移计划。当前部署使用 [FastAPI 后端](../python_backend/README.md)。
+
 ## 项目概述
 
 将 Mnemos 后端从 Node.js/TypeScript 完整重构为 Python，保持与现有前端的完全兼容。

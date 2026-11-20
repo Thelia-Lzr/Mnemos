@@ -1,33 +1,17 @@
 """
 练习相关 Celery 任务
 """
-from celery import Task
 import logging
 from typing import Dict, Any, List
 
+from app.schemas.ai import AIFeature
+from app.services.ai_service import call_ai_for_worker
 from app.tasks.celery_app import celery_app
-from app.core.database import get_database_session
-from app.services.openrouter_service import get_openrouter_service
 
 logger = logging.getLogger(__name__)
 
 
-class DatabaseTask(Task):
-    """带数据库会话的任务基类"""
-    _db = None
-
-    @property
-    def db(self):
-        if self._db is None:
-            self._db = next(get_database_session())
-        return self._db
-
-    def after_return(self, *args, **kwargs):
-        if self._db is not None:
-            self._db.close()
-
-
-@celery_app.task(bind=True, base=DatabaseTask, max_retries=3)
+@celery_app.task(bind=True, max_retries=3)
 def generate_practice_group_async(
     self,
     user_id: str,
@@ -55,8 +39,6 @@ def generate_practice_group_async(
             meta={'current': 10, 'total': 100, 'status': 'Starting generation...'}
         )
 
-        openrouter = get_openrouter_service()
-        model = openrouter.select_model('exercise_generation')
 
         self.update_state(
             state='PROGRESS',
@@ -87,10 +69,9 @@ def generate_practice_group_async(
             meta={'current': 70, 'total': 100, 'status': 'Generating questions...'}
         )
 
-        response = openrouter.call_ai(
-            model=model,
+        response = call_ai_for_worker(
+            AIFeature.EXERCISE_GENERATION,
             prompt=prompt,
-            user_id=user_id,
         )
 
         self.update_state(
@@ -108,7 +89,7 @@ def generate_practice_group_async(
         raise self.retry(exc=exc, countdown=120)
 
 
-@celery_app.task(bind=True, base=DatabaseTask, max_retries=3)
+@celery_app.task(bind=True, max_retries=3)
 def analyze_practice_result_async(
     self,
     user_id: str,
@@ -131,8 +112,6 @@ def analyze_practice_result_async(
         分析结果
     """
     try:
-        openrouter = get_openrouter_service()
-        model = openrouter.select_model('exercise_generation')
 
         prompt = f"""分析用户的练习结果：
 - 总题目数：{total_questions}
@@ -154,10 +133,9 @@ def analyze_practice_result_async(
 }}
 """
 
-        response = openrouter.call_ai(
-            model=model,
+        response = call_ai_for_worker(
+            AIFeature.PRACTICE_ANALYSIS,
             prompt=prompt,
-            user_id=user_id,
         )
 
         return {
@@ -170,7 +148,7 @@ def analyze_practice_result_async(
         raise self.retry(exc=exc, countdown=60)
 
 
-@celery_app.task(bind=True, base=DatabaseTask, max_retries=3)
+@celery_app.task(bind=True, max_retries=3)
 def generate_vocabulary_practice_async(
     self,
     user_id: str,
@@ -189,8 +167,6 @@ def generate_vocabulary_practice_async(
         生成的词汇练习数据
     """
     try:
-        openrouter = get_openrouter_service()
-        model = openrouter.select_model('vocabulary')
 
         prompt = f"""为以下{language}词汇生成练习题：
 词汇 ID：{', '.join(word_ids)}
@@ -212,10 +188,9 @@ def generate_vocabulary_practice_async(
 }}
 """
 
-        response = openrouter.call_ai(
-            model=model,
+        response = call_ai_for_worker(
+            AIFeature.VOCABULARY_PRACTICE,
             prompt=prompt,
-            user_id=user_id,
         )
 
         return {

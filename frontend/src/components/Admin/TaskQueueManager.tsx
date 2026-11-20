@@ -28,7 +28,6 @@ import {
   LinearProgress,
   MenuItem
 } from '@mui/material';
-import SecurityUtils from '../../utils/security';
 import api from '../../services/api';
 import {
   Refresh as RefreshIcon,
@@ -99,8 +98,6 @@ const TaskQueueManager: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const token = SecurityUtils.getSecureItem<string>('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
 
       // Build query parameters
       const params = new URLSearchParams({

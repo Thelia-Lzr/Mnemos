@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { 
   Container, 
   ThemeProvider, 
@@ -10,7 +10,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { lightTheme, darkTheme } from './theme/theme';
 import SecurityUtils from './utils/security';
-import AuthPage from './pages/AuthPage';
+import AISettingsPage from './pages/AISettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import ChatPage from './pages/ChatPage';
 import PracticePage from './pages/PracticePage';
@@ -22,14 +22,16 @@ import AssessmentPage from './pages/AssessmentPage';
 import RechargePage from './pages/RechargePage';
 import AdminPage from './pages/AdminPage';
 import Layout from './components/Layout/Layout';
-import ProtectedRoute from './components/Auth/ProtectedRoute';
+import { useAppDispatch } from './store/hooks';
+import { loadWorkspaceProfile } from './store/slices/workspaceSlice';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import NotificationProvider from './components/common/NotificationProvider';
 import PageTransition from './components/common/PageTransition';
 
 function App() {
+  const dispatch = useAppDispatch();
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-  const [darkMode, setDarkMode] = useState(() => {
+  const [darkMode] = useState(() => {
     const saved = SecurityUtils.getSecureItem<boolean>('darkMode');
     return saved !== null ? saved : prefersDarkMode;
   });
@@ -39,21 +41,10 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    // Security checks on app initialization
     SecurityUtils.preventClickjacking();
-    
-    // Clear sensitive data on page unload
-    const handleBeforeUnload = () => {
-      // Only clear if user is not authenticated
-      const token = SecurityUtils.getSecureItem<string>('token');
-      if (!token) {
-        SecurityUtils.clearSensitiveData();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+    SecurityUtils.clearLegacySession();
+    dispatch(loadWorkspaceProfile());
+  }, [dispatch]);
 
   const theme = darkMode ? darkTheme : lightTheme;
 
@@ -64,125 +55,97 @@ function App() {
         <NotificationProvider>
           <Container maxWidth={false} disableGutters sx={{ height: '100vh' }}>
             <Routes>
-              <Route 
-                path="/auth" 
-                element={
-                  <PageTransition type="fade">
-                    <AuthPage />
-                  </PageTransition>
-                } 
-              />
               <Route path="/" element={<Layout />}>
                 <Route 
                   index 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="up">
-                        <DashboardPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="up">
+                      <DashboardPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="dashboard" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="up">
-                        <DashboardPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="up">
+                      <DashboardPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="chat" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="left">
-                        <ChatPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="left">
+                      <ChatPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="practice" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="left">
-                        <PracticePage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="left">
+                      <PracticePage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="practice-history" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="left">
-                        <PracticeHistoryPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="left">
+                      <PracticeHistoryPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="assessment" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="left">
-                        <AssessmentPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="left">
+                      <AssessmentPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="vocabulary" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="left">
-                        <VocabularyPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="left">
+                      <VocabularyPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="pk" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="left">
-                        <PKArenaPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="left">
+                      <PKArenaPage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="profile" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="right">
-                        <ProfilePage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="right">
+                      <ProfilePage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="recharge" 
                   element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="right">
-                        <RechargePage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="slide" direction="right">
+                      <RechargePage />
+                    </PageTransition>
                   } 
                 />
                 <Route 
                   path="admin" 
                   element={
-                    <ProtectedRoute requireAdmin>
-                      <PageTransition type="zoom">
-                        <AdminPage />
-                      </PageTransition>
-                    </ProtectedRoute>
+                    <PageTransition type="zoom">
+                      <AdminPage />
+                    </PageTransition>
                   } 
                 />
+                <Route path="ai-settings" element={<AISettingsPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
             </Routes>
           </Container>

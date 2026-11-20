@@ -1,15 +1,6 @@
 """
 Pydantic 模式定义
 """
-from app.schemas.auth import (
-    UserRegister,
-    UserLogin,
-    TokenResponse,
-    TokenData,
-    PasswordChange,
-    RefreshTokenRequest,
-    UserAuthResponse,
-)
 from app.schemas.user import (
     UserResponse,
     UserUpdate,
@@ -96,14 +87,6 @@ from app.schemas.common import (
 )
 
 __all__ = [
-    # Auth
-    "UserRegister",
-    "UserLogin",
-    "TokenResponse",
-    "TokenData",
-    "PasswordChange",
-    "RefreshTokenRequest",
-    "UserAuthResponse",
     # User
     "UserResponse",
     "UserUpdate",

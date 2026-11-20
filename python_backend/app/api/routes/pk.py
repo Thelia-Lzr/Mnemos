@@ -7,7 +7,7 @@ from sqlalchemy import select
 from typing import Optional, List
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.pk import (
     PKMatchRequest,
     PKBattleResponse,
@@ -32,7 +32,7 @@ async def find_match(
     *,
     db: AsyncSession = Depends(get_db),
     request: PKMatchRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """寻找 PK 对手"""
     pk_service = get_pk_battle_service(db)
@@ -83,7 +83,7 @@ async def find_match(
 async def cancel_match(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """取消匹配"""
     pk_service = get_pk_battle_service(db)
@@ -100,7 +100,7 @@ async def cancel_match(
 async def get_match_status(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取匹配状态"""
     result = await db.execute(
@@ -130,7 +130,7 @@ async def get_battle(
     *,
     battle_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取对战信息"""
     pk_service = get_pk_battle_service(db)
@@ -168,7 +168,7 @@ async def start_battle(
     *,
     battle_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """开始对战"""
     pk_service = get_pk_battle_service(db)
@@ -195,7 +195,7 @@ async def submit_answer(
     battle_id: str,
     request: PKSubmitAnswerRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """提交答案"""
     pk_service = get_pk_battle_service(db)
@@ -221,7 +221,7 @@ async def finish_battle(
     *,
     battle_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """结束对战"""
     pk_service = get_pk_battle_service(db)
@@ -258,7 +258,7 @@ async def get_battle_history(
     *,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取对战历史"""
     pk_service = get_pk_battle_service(db)
@@ -308,7 +308,7 @@ async def get_user_mmr(
     *,
     language: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取用户 MMR"""
     if language not in ["en", "ja", "fr"]:
@@ -385,7 +385,7 @@ async def get_pk_stats(
     *,
     db: AsyncSession = Depends(get_db),
     language: str = Query("en"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取 PK 统计"""
     pk_service = get_pk_battle_service(db)
@@ -426,7 +426,7 @@ async def get_mmr_history(
     db: AsyncSession = Depends(get_db),
     language: str = Query("en"),
     limit: int = Query(50, ge=1, le=200),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取 MMR 历史"""
     result = await db.execute(

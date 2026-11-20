@@ -8,10 +8,11 @@ from datetime import datetime, date, timedelta
 import uuid
 import json
 
+from app.schemas.ai import AIFeature
+from app.services.ai_service import AIUnavailable, call_ai
 from app.models.recommendation import DailyLearningRecommendation
 from app.models.user import User, UserCapability
 from app.models.vocabulary import VocabularyWord
-from app.services.openrouter_service import OpenRouterService, get_openrouter_service, TaskType
 
 
 class DailyRecommendationService:
@@ -19,7 +20,6 @@ class DailyRecommendationService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.openrouter = get_openrouter_service()
 
     async def get_today_recommendation(
         self,
@@ -92,7 +92,6 @@ class DailyRecommendationService:
         review_words = await self._get_review_words(user_id, language)
 
         # 使用 AI 生成推荐
-        model = self.openrouter.select_model(TaskType.EXERCISE_GENERATION)
 
         prompt = self._build_recommendation_prompt(
             language=language,
@@ -102,18 +101,13 @@ class DailyRecommendationService:
         )
 
         try:
-            response = await self.openrouter.call_ai(
-                model=model,
+            response = await call_ai(
+                self.db, AIFeature.DAILY_RECOMMENDATION,
                 prompt=prompt,
-                user_id=user_id,
             )
 
-            # 解析 AI 响应
-            try:
-                recommendation_data = json.loads(response["content"])
-            except json.JSONDecodeError:
-                recommendation_data = {}
-        except Exception:
+            recommendation_data = json.loads(response["content"])
+        except AIUnavailable:
             recommendation_data = self._build_fallback_recommendation(
                 review_words=review_words,
                 level=capability.current_level if capability else "A1",

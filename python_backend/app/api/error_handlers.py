@@ -4,11 +4,12 @@
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.exc import SQLAlchemyError
 from pydantic import ValidationError
 import logging
 from typing import Optional, Any
+
+from app.services.ai_service import AIUnavailable
 
 logger = logging.getLogger(__name__)
 
@@ -16,20 +17,28 @@ logger = logging.getLogger(__name__)
 def register_exception_handlers(app: FastAPI) -> None:
     """注册异常处理器"""
 
+    @app.exception_handler(AIUnavailable)
+    async def ai_unavailable_handler(request: Request, exc: AIUnavailable) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
         """处理请求验证错误"""
-        logger.warning(f"Validation error: {exc.errors()}")
+        details = [
+            {"type": error["type"], "loc": error["loc"], "msg": error["msg"]}
+            for error in exc.errors()
+        ]
+        logger.warning("Request validation failed for %s", request.url.path)
 
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "success": False,
                 "error": "Validation error",
-                "details": exc.errors(),
+                "details": details,
             },
         )
 

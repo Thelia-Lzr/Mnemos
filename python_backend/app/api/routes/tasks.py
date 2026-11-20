@@ -7,7 +7,7 @@ from sqlalchemy import select
 from typing import Optional, List
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.task import (
     TaskStatus,
     TaskPriority,
@@ -28,7 +28,7 @@ async def get_user_tasks(
     status_filter: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取用户任务列表"""
     query = select(AsyncTask).where(AsyncTask.user_id == uuid.UUID(str(current_user.id)))
@@ -69,7 +69,7 @@ async def get_task(
     *,
     task_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取任务详情"""
     result = await db.execute(
@@ -105,7 +105,7 @@ async def get_task_status(
     *,
     task_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取任务状态"""
     result = await db.execute(
@@ -134,7 +134,7 @@ async def get_task_result(
     *,
     task_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取任务结果"""
     result = await db.execute(
@@ -169,7 +169,7 @@ async def cancel_task(
     *,
     task_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """取消任务"""
     result = await db.execute(

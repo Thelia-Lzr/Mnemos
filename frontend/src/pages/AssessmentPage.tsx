@@ -77,7 +77,6 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const AssessmentPage: React.FC = () => {
-  // const { user } = useSelector((state: RootState) => state.auth);
   
   const [currentTab, setCurrentTab] = useState(0);
   const [capabilities, setCapabilities] = useState<UserCapability[]>([]);

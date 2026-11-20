@@ -3,6 +3,7 @@ Mnemos Python Backend - FastAPI 应用入口
 """
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -14,7 +15,7 @@ from app.core.database import init_database, close_database
 from app.core.redis import init_redis, close_redis
 from app.api.error_handlers import register_exception_handlers
 from app.api.routes import (
-    auth,
+    ai_settings,
     users,
     chat,
     practice,
@@ -65,7 +66,7 @@ async def lifespan(app: FastAPI):
 # 创建 FastAPI 应用
 app = FastAPI(
     title="Mnemos API",
-    description="Mnemos AI Language Learning Platform - Python Backend",
+    description="Mnemos AI Language Learning Workspace - Python Backend",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -77,23 +78,22 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 配置信任的主机（生产环境）
-if settings.NODE_ENV == "production":
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1"],
-    )
+# 工作台只通过本机地址访问。
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1"],
+)
+
 
 # 注册异常处理器
 register_exception_handlers(app)
 
 # 注册路由
-app.include_router(auth.router)
+app.include_router(ai_settings.router)
 app.include_router(users.router)
 app.include_router(chat.router)
 app.include_router(practice.router)
@@ -139,7 +139,7 @@ async def root():
     return {
         "name": "Mnemos API",
         "version": "1.0.0",
-        "description": "AI Language Learning Platform",
+        "description": "AI Language Learning Workspace",
         "docs": "/docs",
     }
 
@@ -148,6 +148,11 @@ async def root():
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """记录请求日志"""
+    origin = request.headers.get("origin")
+    if request.url.path.startswith("/api/"):
+        cross_site = request.headers.get("sec-fetch-site") == "cross-site"
+        if (origin is not None or cross_site) and origin not in settings.allowed_origins:
+            return JSONResponse({"detail": "工作台拒绝此浏览器来源。"}, status_code=403)
     logger.info(f"{request.method} {request.url.path}")
     response = await call_next(request)
     logger.info(f"{request.method} {request.url.path} - {response.status_code}")

@@ -4,9 +4,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
+import json
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.schemas.ai import AIFeature
+from app.services.ai_service import AIUnavailable, call_ai
+from app.api.deps import get_db, get_workspace_user
 from app.schemas.chat import (
     SendMessageRequest,
     SendMessageResponse,
@@ -15,6 +18,7 @@ from app.schemas.chat import (
     UploadMaterialResponse,
     FunctionCallRequest,
     FunctionCallResponse,
+    ParseIntentRequest,
     ParseIntentResponse,
     IntentResult,
 )
@@ -29,7 +33,7 @@ async def send_message(
     *,
     db: AsyncSession = Depends(get_db),
     request: SendMessageRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """发送聊天消息"""
     chat_service = get_chat_service(db)
@@ -54,6 +58,8 @@ async def send_message(
                 aiResponse=message.ai_response,
             ),
         )
+    except AIUnavailable:
+        raise
     except Exception as e:
         return SendMessageResponse(
             success=False,
@@ -67,7 +73,7 @@ async def upload_material(
     db: AsyncSession = Depends(get_db),
     file: UploadFile = File(...),
     language: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """上传学习材料"""
     chat_service = get_chat_service(db)
@@ -88,6 +94,8 @@ async def upload_material(
             extractedContent=result.get("content", ""),
             data=result,
         )
+    except AIUnavailable:
+        raise
     except Exception as e:
         return UploadMaterialResponse(
             success=False,
@@ -101,7 +109,7 @@ async def get_chat_history(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取聊天历史"""
     chat_service = get_chat_service(db)
@@ -135,7 +143,7 @@ async def get_chat_history(
 async def clear_chat_history(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """清空聊天历史"""
     chat_service = get_chat_service(db)
@@ -156,7 +164,7 @@ async def search_messages(
     db: AsyncSession = Depends(get_db),
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """搜索消息"""
     chat_service = get_chat_service(db)
@@ -185,14 +193,9 @@ async def execute_function(
     *,
     db: AsyncSession = Depends(get_db),
     request: FunctionCallRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """执行函数调用"""
-    from app.services.openrouter_service import get_openrouter_service, TaskType
-
-    # 使用 AI 识别应该调用哪个函数
-    openrouter = get_openrouter_service()
-    model = openrouter.select_model(TaskType.FUNCTION_CALLING)
 
     # 构建可用函数列表
     available_functions = [
@@ -220,7 +223,8 @@ async def execute_function(
 
     prompt = f"""分析用户请求，确定应该调用哪个函数。
 
-用户请求：{request.user_input}
+用户意图：{request.intent.value}
+参数：{json.dumps(request.parameters, ensure_ascii=False)}
 
 可用函数：
 {available_functions}
@@ -234,21 +238,12 @@ async def execute_function(
 """
 
     try:
-        response = await openrouter.call_ai(
-            model=model,
+        response = await call_ai(
+            db, AIFeature.FUNCTION_CALLING,
             prompt=prompt,
-            user_id=str(current_user.id),
         )
 
-        import json
-        try:
-            result = json.loads(response["content"])
-        except json.JSONDecodeError:
-            result = {
-                "function_name": "unknown",
-                "parameters": {},
-                "confidence": 0.5,
-            }
+        result = json.loads(response["content"])
 
         # 执行识别出的函数
         function_name = result.get("function_name")
@@ -259,11 +254,16 @@ async def execute_function(
         return FunctionCallResponse(
             success=True,
             result={
-                "called_function": function_name,
-                "parameters": parameters,
-                "confidence": result.get("confidence", 0.5),
+                "success": True,
+                "data": {
+                    "called_function": function_name,
+                    "parameters": parameters,
+                    "confidence": result.get("confidence", 0.5),
+                },
             },
         )
+    except AIUnavailable:
+        raise
     except Exception as e:
         return FunctionCallResponse(
             success=False,
@@ -275,28 +275,28 @@ async def execute_function(
 async def parse_intent(
     *,
     db: AsyncSession = Depends(get_db),
-    message: str = Query(...),
-    current_user: User = Depends(get_current_user),
+    message: Optional[str] = Query(None, min_length=1),
+    request: Optional[ParseIntentRequest] = None,
+    current_user: User = Depends(get_workspace_user),
 ):
     """解析用户意图"""
+    if request is None and message is None:
+        raise HTTPException(status_code=400, detail="请输入要识别的消息。")
     chat_service = get_chat_service(db)
 
     try:
         result = await chat_service.parse_intent(
             user_id=str(current_user.id),
-            message=message,
+            message=request.message if request else message,
+            context=request.context if request else None,
         )
 
         return ParseIntentResponse(
             success=True,
-            result=IntentResult(
-                intent="language_learning",
-                confidence=0.8,
-                parameters={},
-                requiresConfirmation=False,
-                isPrivacySensitive=False,
-            ),
+            result=IntentResult.model_validate(result),
         )
+    except AIUnavailable:
+        raise
     except Exception as e:
         return ParseIntentResponse(
             success=False,

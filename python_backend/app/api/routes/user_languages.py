@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 from typing import Optional, List
 import uuid
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_workspace_user
 from app.models.user import User, UserLearningLanguage
 from app.models.user import UserCapability
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/user-languages", tags=["用户语言"])
 async def get_user_languages(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """获取用户语言列表"""
     result = await db.execute(
@@ -49,7 +49,7 @@ async def add_user_language(
     *,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """添加用户语言"""
     language = request.get("language")
@@ -122,7 +122,7 @@ async def update_user_language(
     language_id: str,
     request: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """更新用户语言设置"""
     result = await db.execute(
@@ -171,7 +171,7 @@ async def delete_user_language(
     *,
     language_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_workspace_user),
 ):
     """删除用户语言"""
     result = await db.execute(

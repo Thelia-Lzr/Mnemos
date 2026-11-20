@@ -1,7 +1,7 @@
 """
 聊天相关 Pydantic 模式
 """
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -61,7 +61,6 @@ class UserIntent(str, Enum):
     # 隐私敏感
     ACCOUNT_MANAGEMENT = "account_management"
     PAYMENT_OPERATIONS = "payment_operations"
-    PASSWORD_CHANGE = "password_change"
 
 
 class FileAttachment(BaseModel):
@@ -79,8 +78,8 @@ class AIResponse(BaseModel):
     """AI 响应"""
     content: str
     model: str
-    tokensUsed: int
-    processingTime: int
+    tokensUsed: int = Field(validation_alias=AliasChoices("tokensUsed", "tokens_used"))
+    processingTime: int = Field(validation_alias=AliasChoices("processingTime", "processing_time"))
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -163,6 +162,11 @@ class IntentResult(BaseModel):
     parameters: Dict[str, Any]
     requiresConfirmation: bool
     isPrivacySensitive: bool
+
+
+class ParseIntentRequest(BaseModel):
+    message: str = Field(min_length=1)
+    context: Optional[Dict[str, Any]] = None
 
 
 class ParseIntentResponse(BaseModel):
