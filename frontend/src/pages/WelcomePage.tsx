@@ -36,6 +36,7 @@ export default function WelcomePage() {
           </div>
 
           <figure className="welcome-portrait">
+            <div className="mnemos-orbit" aria-hidden="true" />
             <img
               src={companionArtwork}
               alt="手持笔记本的蓝紫色动漫少女，Mnemos 的 AI 学习伙伴"

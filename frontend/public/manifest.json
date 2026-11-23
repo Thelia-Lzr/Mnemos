@@ -1,15 +1,15 @@
 {
-  "short_name": "AI Language Learning",
-  "name": "AI Language Learning Assistant",
+  "short_name": "Mnemos",
+  "name": "Mnemos AI 语言学习助手",
   "icons": [
     {
-      "src": "favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
+      "src": "favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#3037ef",
+  "background_color": "#f8f7ff"
 }

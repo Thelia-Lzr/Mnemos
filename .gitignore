@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 */node_modules/
+/python_backend/.venv/
+__pycache__/
+.coverage
+.coverage.*
 
 # Build outputs
 build/
@@ -9,7 +13,6 @@ dist/
 */dist/
 *.tsbuildinfo
 .tsbuildinfo
-backend/dist/
 frontend/build/
 
 # Environment files
@@ -20,11 +23,6 @@ frontend/build/
 .env.development.local
 .env.test.local
 .env.production.local
-
-# Backend environment files
-backend/.env
-backend/.env.*
-!backend/.env.example
 
 # Frontend environment files
 frontend/.env
@@ -40,7 +38,6 @@ yarn-error.log*
 lerna-debug.log*
 
 # Application logs
-backend/logs/
 frontend/logs/
 */logs/
 **/*.log
@@ -108,6 +105,7 @@ dist
 # Gatsby files
 .cache/
 public
+!/frontend/public/
 
 # Storybook build outputs
 .out
@@ -151,13 +149,11 @@ src/**/*.d.ts.map
 
 # Source map files
 *.map
-backend/dist/**/*.map
 frontend/build/**/*.map
 
 # Upload directories
 uploads/
 */uploads/
-backend/uploads/
 frontend/uploads/
 
 # Package manager lock files (optional - uncomment if you want to ignore them)
@@ -173,7 +169,6 @@ frontend/uploads/
 dump.rdb
 
 # Test environment files
-backend/.env.test
 frontend/.env.test
 
 # IDE and editor files
