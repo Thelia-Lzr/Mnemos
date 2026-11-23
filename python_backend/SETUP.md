@@ -117,3 +117,16 @@ make lint
 # 自动修复风格问题
 make lint-fix
 ```
+
+## 欢迎页与个人 OpenRouter 密钥
+
+在后端 `.env` 设置 `AI_CREDENTIAL_ENCRYPTION_KEY`，并执行
+`make db-migrate` 创建个人密钥表。可用以下命令生成独立的加密密钥：
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+保留此加密密钥，并在同一部署的各后端实例中使用相同的值，以便读取已保存的个人密钥。
+已配置个人密钥时，学习请求优先使用它，并发送到官方 OpenRouter API。也可以配置原有的
+`OPENROUTER_API_KEY` 作为服务器默认密钥。

@@ -9,6 +9,10 @@ const resolveApiBaseUrl = () => {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
+const redirectToAuth = () => {
+  window.location.href = window.location.pathname === '/ai-setup' ? '/auth?next=ai-setup' : '/auth';
+};
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000, // Increased timeout for better UX
@@ -99,8 +103,10 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const apiError = ErrorHandler.handleApiError(error);
 
-    // Log error
-    ErrorHandler.logError(error, `API ${originalRequest?.method?.toUpperCase()} ${originalRequest?.url}`);
+    // Axios errors include the request body, which contains the personal key here.
+    if (originalRequest?.url !== '/users/ai-settings') {
+      ErrorHandler.logError(error, `API ${originalRequest?.method?.toUpperCase()} ${originalRequest?.url}`);
+    }
 
     // Handle different error types
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -144,9 +150,7 @@ api.interceptors.response.use(
           processQueue(refreshError, null);
           SecurityUtils.clearSensitiveData();
           ErrorHandler.showError('登录已过期，请重新登录');
-          setTimeout(() => {
-            window.location.href = '/auth';
-          }, 2000);
+          setTimeout(redirectToAuth, 2000);
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;
@@ -154,7 +158,8 @@ api.interceptors.response.use(
       } else {
         SecurityUtils.clearSensitiveData();
         ErrorHandler.showError('请先登录');
-        window.location.href = '/auth';
+        isRefreshing = false;
+        redirectToAuth();
       }
     } else if (error.response?.status === 429) {
       // Rate limiting

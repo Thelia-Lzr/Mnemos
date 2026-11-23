@@ -40,7 +40,7 @@ export class ErrorHandler {
       // Server responded with error status
       const { status, data } = error.response;
       apiError = {
-        message: data?.message || '服务器错误',
+        message: data?.message || (typeof data?.detail === 'string' ? data.detail : '服务器错误'),
         statusCode: status,
         code: data?.code,
         details: data?.details

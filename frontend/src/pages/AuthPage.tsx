@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import PasswordStrengthIndicator from '../components/Auth/PasswordStrengthIndicator';
 import LoadingButton from '../components/common/LoadingButton';
 import api from '../services/api';
@@ -64,6 +64,8 @@ const AuthPage: React.FC = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextPath = searchParams.get('next') === 'ai-setup' ? '/ai-setup' : '/dashboard';
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
@@ -71,9 +73,9 @@ const AuthPage: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate(nextPath, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, nextPath]);
 
   useEffect(() => {
     dispatch(clearError());

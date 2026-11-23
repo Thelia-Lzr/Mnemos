@@ -7,7 +7,10 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from enum import Enum
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
+from app.services.ai_credentials import OPENROUTER_URL, get_personal_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +57,7 @@ class OpenRouterService:
         self.base_url = settings.OPENROUTER_BASE_URL
 
         if not self.api_key and not test_mode:
-            logger.warning("OPENROUTER_API_KEY not set, AI features will be limited")
+            logger.info("No server OpenRouter key configured; AI features require a personal key")
 
         self.model_configs: Dict[str, ModelConfig] = {}
         self._initialize_model_configs()
@@ -112,6 +115,7 @@ class OpenRouterService:
         prompt: str,
         context: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
     ) -> Dict[str, Any]:
         """调用 AI 模型"""
         start_time = datetime.now()
@@ -120,8 +124,7 @@ class OpenRouterService:
         if self.test_mode:
             return self._generate_mock_response(model, prompt, context, start_time)
 
-        if not self.api_key:
-            raise ValueError("OpenRouter API key not configured")
+        api_key, base_url = await self._resolve_credentials(db, user_id)
 
         model_config = self.model_configs.get(model)
         if not model_config:
@@ -137,7 +140,7 @@ class OpenRouterService:
         }
 
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": settings.CORS_ORIGIN or "http://localhost:3000",
             "X-Title": "Mnemos AI Language Learning",
@@ -146,7 +149,7 @@ class OpenRouterService:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{base_url}/chat/completions",
                     json=request_data,
                     headers=headers,
                 )
@@ -181,6 +184,7 @@ class OpenRouterService:
         prompt: str,
         context: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
     ):
         """流式调用 AI 模型"""
         if self.test_mode:
@@ -191,8 +195,7 @@ class OpenRouterService:
                 yield "data: [DONE]\n\n"
             return mock_stream()
 
-        if not self.api_key:
-            raise ValueError("OpenRouter API key not configured")
+        api_key, base_url = await self._resolve_credentials(db, user_id)
 
         model_config = self.model_configs.get(model)
         if not model_config:
@@ -209,7 +212,7 @@ class OpenRouterService:
         }
 
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": settings.CORS_ORIGIN or "http://localhost:3000",
             "X-Title": "Mnemos AI Language Learning",
@@ -221,7 +224,7 @@ class OpenRouterService:
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     async with client.stream(
                         "POST",
-                        f"{self.base_url}/chat/completions",
+                        f"{base_url}/chat/completions",
                         json=request_data,
                         headers=headers,
                     ) as response:
@@ -237,6 +240,17 @@ class OpenRouterService:
                 yield "data: [DONE]\n\n"
 
         return stream_generator()
+
+    async def _resolve_credentials(
+        self, db: Optional[AsyncSession], user_id: Optional[str]
+    ) -> tuple[str, str]:
+        if db is not None and user_id is not None:
+            personal_key = await get_personal_api_key(db, user_id)
+            if personal_key:
+                return personal_key, OPENROUTER_URL
+        if not self.api_key:
+            raise ValueError("OpenRouter API key not configured")
+        return self.api_key, self.base_url
 
     def _build_messages(
         self,

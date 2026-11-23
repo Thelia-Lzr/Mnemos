@@ -479,6 +479,7 @@ async def ask_followup(
             model=model,
             prompt=prompt,
             user_id=str(current_user.id),
+            db=db,
         )
 
         return {

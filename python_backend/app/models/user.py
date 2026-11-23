@@ -4,6 +4,7 @@
 from sqlalchemy import (
     Column,
     String,
+    Text,
     DateTime,
     Boolean,
     Integer,
@@ -85,6 +86,15 @@ class User(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username={self.username}, email={self.email})>"
+
+
+class UserAiCredential(Base):
+    """个人 AI API 密钥（加密保存）"""
+
+    __tablename__ = "user_ai_credentials"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    encrypted_api_key = Column(Text, nullable=False)
 
 
 class UserPreferences(Base, TimestampMixin):

@@ -434,11 +434,11 @@ const Layout: React.FC = () => {
                 </ListItemIcon>
                 <Typography variant="body2">通知</Typography>
               </MenuItem>
-              <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}>
+              <MenuItem onClick={() => { navigate('/ai-setup'); handleMenuClose(); }}>
                 <ListItemIcon>
                   <Settings fontSize="small" />
                 </ListItemIcon>
-                <Typography variant="body2">设置</Typography>
+                <Typography variant="body2">AI API 设置</Typography>
               </MenuItem>
               <Divider />
               <MenuItem onClick={handleLogout}>

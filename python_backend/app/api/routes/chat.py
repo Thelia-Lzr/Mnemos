@@ -238,6 +238,7 @@ async def execute_function(
             model=model,
             prompt=prompt,
             user_id=str(current_user.id),
+            db=db,
         )
 
         import json

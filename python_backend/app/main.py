@@ -14,6 +14,7 @@ from app.core.database import init_database, close_database
 from app.core.redis import init_redis, close_redis
 from app.api.error_handlers import register_exception_handlers
 from app.api.routes import (
+    ai_settings,
     auth,
     users,
     chat,
@@ -94,6 +95,7 @@ register_exception_handlers(app)
 
 # 注册路由
 app.include_router(auth.router)
+app.include_router(ai_settings.router)
 app.include_router(users.router)
 app.include_router(chat.router)
 app.include_router(practice.router)

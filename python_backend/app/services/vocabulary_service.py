@@ -95,6 +95,7 @@ class VocabularyService:
             model=model,
             prompt=prompt,
             user_id=user_id,
+            db=self.db,
         )
 
         # 解析 AI 响应
@@ -453,6 +454,7 @@ class VocabularyService:
             model=model,
             prompt=prompt,
             user_id=user_id,
+            db=self.db,
         )
 
         try:

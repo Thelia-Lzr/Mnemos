@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { loadUserProfile, refreshAuthToken, setInitialized } from '../../store/slices/authSlice';
@@ -11,6 +11,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
   const dispatch = useAppDispatch();
+  const { pathname } = useLocation();
   const { isAuthenticated, user, token, refreshToken, loading, initialized } = useAppSelector(
     (state) => state.auth
   );
@@ -62,7 +63,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
 
   // Redirect to auth if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to={pathname === '/ai-setup' ? '/auth?next=ai-setup' : '/auth'} replace />;
   }
 
   // Check admin requirement

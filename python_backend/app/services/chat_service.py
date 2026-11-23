@@ -68,6 +68,7 @@ class ChatService:
                 **(context or {})
             },
             user_id=user_id,
+            db=self.db,
         )
 
         # 创建 AI 响应消息
@@ -201,6 +202,7 @@ class ChatService:
             model=model,
             prompt=prompt,
             user_id=user_id,
+            db=self.db,
         )
 
         # 创建系统消息记录
@@ -262,6 +264,7 @@ class ChatService:
             model=model,
             prompt=prompt,
             user_id=user_id,
+            db=self.db,
         )
 
         return {

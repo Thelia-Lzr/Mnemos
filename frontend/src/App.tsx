@@ -11,6 +11,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import { lightTheme, darkTheme } from './theme/theme';
 import SecurityUtils from './utils/security';
 import AuthPage from './pages/AuthPage';
+import WelcomePage from './pages/WelcomePage';
+import AiSetupPage from './pages/AiSetupPage';
 import DashboardPage from './pages/DashboardPage';
 import ChatPage from './pages/ChatPage';
 import PracticePage from './pages/PracticePage';
@@ -72,17 +74,16 @@ function App() {
                   </PageTransition>
                 } 
               />
-              <Route path="/" element={<Layout />}>
-                <Route 
-                  index 
-                  element={
-                    <ProtectedRoute>
-                      <PageTransition type="slide" direction="up">
-                        <DashboardPage />
-                      </PageTransition>
-                    </ProtectedRoute>
-                  } 
-                />
+              <Route path="/" element={<WelcomePage />} />
+              <Route
+                path="/ai-setup"
+                element={
+                  <ProtectedRoute>
+                    <AiSetupPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route element={<Layout />}>
                 <Route 
                   path="dashboard" 
                   element={

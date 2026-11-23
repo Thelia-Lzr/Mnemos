@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # OpenRouter 配置
     OPENROUTER_API_KEY: str = ""
+    AI_CREDENTIAL_ENCRYPTION_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     DEFAULT_AI_MODEL: str = "openai/gpt-4o"
 
